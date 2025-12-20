@@ -302,16 +302,18 @@ export class SchemaPreviewPanel {
           label: escapeHtml(opt.label),
           value: escapeHtml(opt.value)
         })) || [];
-
+        
         return `
           <div class="form-field">
             <label class="field-label">${label}</label>
             ${helpText ? `<div class="field-help">${helpText}</div>` : ''}
-            <select class="field-select" disabled>
-              ${options.map((opt: any) => `
-                <option value="${opt.value}" ${opt.value === setting.default ? 'selected' : ''}>${opt.label}</option>
-              `).join('')}
-            </select>
+            <div class="select-wrapper">
+              <select class="field-select" data-default="${escapeHtml(setting.default || '')}">
+                ${options.map((opt: any) => `
+                  <option value="${opt.value}" ${opt.value === setting.default ? 'selected' : ''}>${opt.label}</option>
+                `).join('')}
+              </select>
+            </div>
           </div>
         `;
 
@@ -421,11 +423,13 @@ export class SchemaPreviewPanel {
           <div class="form-field">
             <label class="field-label">${label}</label>
             ${helpText ? `<div class="field-help">${helpText}</div>` : ''}
-            <select class="field-select" disabled>
-              <option value="scheme-1" ${setting.default === 'scheme-1' ? 'selected' : ''}>Scheme 1</option>
-              <option value="scheme-2" ${setting.default === 'scheme-2' ? 'selected' : ''}>Scheme 2</option>
-              <option value="scheme-3" ${setting.default === 'scheme-3' ? 'selected' : ''}>Scheme 3</option>
-            </select>
+            <div class="select-wrapper">
+              <select class="field-select" data-default="${escapeHtml(setting.default || 'scheme-1')}">
+                <option value="scheme-1" ${setting.default === 'scheme-1' ? 'selected' : ''}>Scheme 1</option>
+                <option value="scheme-2" ${setting.default === 'scheme-2' ? 'selected' : ''}>Scheme 2</option>
+                <option value="scheme-3" ${setting.default === 'scheme-3' ? 'selected' : ''}>Scheme 3</option>
+              </select>
+            </div>
           </div>
         `;
 
@@ -434,12 +438,14 @@ export class SchemaPreviewPanel {
           <div class="form-field">
             <label class="field-label">${label}</label>
             ${helpText ? `<div class="field-help">${helpText}</div>` : ''}
-            <select class="field-select" disabled>
-              <option value="assistant_n4" ${setting.default === 'assistant_n4' ? 'selected' : ''}>Assistant</option>
-              <option value="helvetica">Helvetica</option>
-              <option value="arial">Arial</option>
-              <option value="times_new_roman">Times New Roman</option>
-            </select>
+            <div class="select-wrapper">
+              <select class="field-select" data-default="${escapeHtml(setting.default || 'assistant_n4')}">
+                <option value="assistant_n4" ${setting.default === 'assistant_n4' ? 'selected' : ''}>Assistant</option>
+                <option value="helvetica">Helvetica</option>
+                <option value="arial">Arial</option>
+                <option value="times_new_roman">Times New Roman</option>
+              </select>
+            </div>
           </div>
         `;
 
@@ -478,11 +484,13 @@ export class SchemaPreviewPanel {
           <div class="form-field">
             <label class="field-label">${label}</label>
             ${helpText ? `<div class="field-help">${helpText}</div>` : ''}
-            <select class="field-select" disabled>
-              <option value="">Select ${setting.type}...</option>
-              <option value="example-1">Example ${setting.type} 1</option>
-              <option value="example-2">Example ${setting.type} 2</option>
-            </select>
+            <div class="select-wrapper">
+              <select class="field-select" data-default="">
+                <option value="">Select ${setting.type}...</option>
+                <option value="example-1">Example ${setting.type} 1</option>
+                <option value="example-2">Example ${setting.type} 2</option>
+              </select>
+            </div>
           </div>
         `;
 
@@ -835,16 +843,41 @@ export class SchemaPreviewPanel {
         padding: 8px 12px;
       }
 
+      .select-wrapper {
+        position: relative;
+        display: block;
+      }
+
+      .select-wrapper::after {
+        content: '';
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 0;
+        height: 0;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 6px solid #76787a;
+        pointer-events: none;
+      }
+
       .field-select {
         cursor: pointer;
-        background-image: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="%235c5f62" d="M10 14l-6-6h12z"/></svg>');
-        background-repeat: no-repeat;
-        background-position: right 8px center;
-        background-size: 20px;
-        padding-right: 36px;
+        padding-right: 40px;
         -webkit-appearance: none;
         -moz-appearance: none;
         appearance: none;
+        background-color: #fafbfb;
+      }
+
+      .field-select:hover {
+        background-color: #f6f6f7;
+        cursor: pointer;
+      }
+
+      .field-select:focus {
+        background-color: white;
       }
 
       .field-checkbox-wrapper {
@@ -1134,18 +1167,20 @@ export class SchemaPreviewPanel {
     return `
       const vscode = acquireVsCodeApi();
       
-      document.querySelectorAll('input, select, textarea').forEach(element => {
-        element.addEventListener('change', (e) => {
-          console.log('Setting changed:', e.target.id, e.target.value);
+      // Allow viewing select options but reset to default value after interaction
+      document.querySelectorAll('select.field-select').forEach(select => {
+        const defaultValue = select.getAttribute('data-default');
+        
+        select.addEventListener('change', (e) => {
+          // Reset to default value (allow viewing options but not changing)
+          setTimeout(() => {
+            e.target.value = defaultValue;
+          }, 100);
         });
-      });
-
-      document.querySelectorAll('.input-color').forEach(colorInput => {
-        colorInput.addEventListener('input', (e) => {
-          const textInput = e.target.nextElementSibling;
-          if (textInput) {
-            textInput.value = e.target.value;
-          }
+        
+        select.addEventListener('blur', (e) => {
+          // Ensure it's back to default when user clicks away
+          e.target.value = defaultValue;
         });
       });
     `;
