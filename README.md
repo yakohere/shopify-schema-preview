@@ -1,129 +1,76 @@
 # Shopify Settings Preview
 
-A VS Code/Cursor extension that provides a visual preview of Shopify section and block schema settings directly in your editor.
+Visual preview of Shopify schema settings directly in VS Code/Cursor. Eliminates the need to open the Shopify theme editor to see how your section, block, and theme settings are configured.
 
-## Features
+![Preview Screenshot](screenshots/preview.png)
 
-- **Shopify Polaris UI**: Uses official [Shopify Polaris web components](https://shopify.dev/docs/api/app-home/polaris-web-components) for authentic Shopify look and feel
-- **Visual Preview**: See your schema settings rendered as form elements without opening the theme editor
-- **Live Updates**: The preview updates automatically as you edit your schema
-- **Auto-Detection**: Automatically detects when a Liquid file contains a schema
-- **Translation Support**: Automatically resolves `t:` translation keys from `locales/en.default.schema.json` or `locales/en.default.json`
-- **All Setting Types Supported**: 
-  - Text inputs
-  - Textareas
-  - Select dropdowns
-  - Checkboxes
-  - Radio buttons
-  - Range sliders
-  - Number inputs
-  - Color pickers
-  - Color schemes
-  - Font pickers
-  - Image/Video pickers
-  - Headers
+## What It Does
+
+- Previews section schemas from `.liquid` files
+- Previews block definitions and their settings
+- Previews theme settings from `config/settings_schema.json`
+- Automatically switches preview when you switch files
+- Resolves `t:` translation keys from locale files
+- Updates in real-time as you edit
+
+## Supported File Types
+
+- **Liquid files** with `{% schema %}` blocks
+- **settings_schema.json** for theme-wide settings
+
+## Supported Setting Types
+
+Text, textarea, select, checkbox, radio, range, number, color, color_scheme, font_picker, image_picker, video, url, liquid, richtext, and resource pickers (product, collection, page, blog, article).
 
 ## Usage
 
-1. Open any Shopify Liquid file containing a `{% schema %}` block
-2. Click the preview icon in the editor toolbar, or
-3. Use the command palette (Cmd/Ctrl+Shift+P) and search for "Shopify: Preview Schema Settings"
-4. The preview panel will open beside your editor
+Click the preview icon in the editor toolbar or use `Cmd+Shift+P` and search for "Shopify: Preview Schema Settings".
+
+The preview panel stays open and updates automatically when you switch between schema files.
+
+## Translation Support
+
+Resolves translation keys following Shopify's convention:
+1. Checks `locales/en.default.schema.json`
+2. Falls back to `locales/en.default.json`
 
 ## Installation
 
-### From Source
+### Development
 
-1. Clone or download this repository
-2. Open the folder in VS Code/Cursor
-3. Run `npm install` to install dependencies
-4. Press F5 to open a new window with the extension loaded
-5. Open a Shopify Liquid file and test the extension
+```bash
+npm install && npm run compile
+```
 
-### Building VSIX
+Press `F5` to launch.
 
-To package the extension:
+### Production
 
 ```bash
 npm install -g @vscode/vsce
 vsce package
 ```
 
-Then install the `.vsix` file in VS Code/Cursor.
-
-## Translation Support
-
-The extension automatically resolves Shopify translation keys (`t:` format):
-
-- Checks `locales/en.default.schema.json` first (Shopify's convention)
-- Falls back to `locales/en.default.json` if schema file not found
-- Displays original key if no translation found
-
-Example:
-```liquid
-{
-  "label": "t:settings.heading"
-}
-```
-Becomes: **"Heading"** in the preview (resolved from locale file)
-
-See [TRANSLATION_GUIDE.md](TRANSLATION_GUIDE.md) for detailed documentation.
+Install the generated `.vsix` file through VS Code Extensions panel.
 
 ## Configuration
 
-The extension supports the following settings:
+- `shopify-settings-preview.autoSuggest` - Auto-suggest preview when schema detected (default: true)
 
-- `shopify-settings-preview.autoSuggest`: Automatically suggest opening the preview when a schema is detected (default: `true`)
+## Architecture
 
-## Example
+Modular TypeScript codebase with separated concerns:
+- Schema parsing (Liquid and JSON)
+- Preview rendering (HTML generation)
+- Translation resolution (locale file handling)
+- Event coordination (file watching and updates)
 
-When you have a Liquid file with this schema:
+Type-safe with interfaces for section schemas, theme settings, and individual settings.
 
-```liquid
-{% schema %}
-{
-  "name": "Featured Collection",
-  "settings": [
-    {
-      "type": "text",
-      "id": "heading",
-      "label": "Heading",
-      "default": "Featured Collection"
-    },
-    {
-      "type": "range",
-      "id": "products_to_show",
-      "label": "Products to show",
-      "min": 2,
-      "max": 12,
-      "step": 2,
-      "default": 4
-    }
-  ]
-}
-{% endschema %}
-```
+## Demo Theme
 
-The extension will render it as a beautiful, interactive form with proper labels, inputs, and styling that matches the Shopify theme editor.
-
-## Development
-
-```bash
-# Install dependencies
-npm install
-
-# Compile TypeScript
-npm run compile
-
-# Watch mode for development
-npm run watch
-```
+Includes a complete demo theme in `demo-theme/` with example sections, blocks, theme settings, and translations.
 
 ## License
 
 MIT
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
