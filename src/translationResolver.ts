@@ -28,8 +28,8 @@ export function resolveTranslation(key: string, workspaceFolder?: vscode.Workspa
   }
 
   const translations = loadTranslations(workspaceFolder);
-  
   const value = getNestedValue(translations, translationKey);
+  
   return value || key;
 }
 
@@ -40,9 +40,9 @@ function loadTranslations(workspaceFolder: vscode.WorkspaceFolder): any {
     return translationCache[cacheKey];
   }
 
-  const localesPath = path.join(workspaceFolder.uri.fsPath, 'locales');
+  const localesPath = findLocalesFolder(workspaceFolder.uri.fsPath);
   
-  if (!fs.existsSync(localesPath)) {
+  if (!localesPath) {
     translationCache[cacheKey] = {};
     return {};
   }
@@ -53,31 +53,54 @@ function loadTranslations(workspaceFolder: vscode.WorkspaceFolder): any {
   let translations = {};
 
   if (fs.existsSync(schemaFile)) {
-    try {
-      const content = fs.readFileSync(schemaFile, 'utf-8');
-      translations = JSON.parse(content);
-      console.log('Loaded translations from en.default.schema.json');
-    } catch (error) {
-      console.error('Error loading en.default.schema.json:', error);
+    translations = tryParseJsonFile(schemaFile, 'en.default.schema.json');
+    if (!translations && fs.existsSync(defaultFile)) {
+      translations = tryParseJsonFile(defaultFile, 'en.default.json');
     }
   } else if (fs.existsSync(defaultFile)) {
-    try {
-      const content = fs.readFileSync(defaultFile, 'utf-8');
-      translations = JSON.parse(content);
-      console.log('Loaded translations from en.default.json');
-    } catch (error) {
-      console.error('Error loading en.default.json:', error);
-    }
+    translations = tryParseJsonFile(defaultFile, 'en.default.json');
   }
 
   translationCache[cacheKey] = translations;
   return translations;
 }
 
+function findLocalesFolder(workspacePath: string): string | null {
+  const possiblePaths = [
+    path.join(workspacePath, 'locales'),
+    path.join(workspacePath, 'app', 'locales'),
+    path.join(workspacePath, 'theme', 'locales'),
+    path.join(workspacePath, 'src', 'locales'),
+    path.join(workspacePath, '..', 'locales'),
+  ];
+
+  for (const localesPath of possiblePaths) {
+    if (fs.existsSync(localesPath)) {
+      return localesPath;
+    }
+  }
+
+  try {
+    const directories = fs.readdirSync(workspacePath, { withFileTypes: true });
+    for (const dir of directories) {
+      if (dir.isDirectory() && dir.name !== 'node_modules' && !dir.name.startsWith('.')) {
+        const nestedLocales = path.join(workspacePath, dir.name, 'locales');
+        if (fs.existsSync(nestedLocales)) {
+          return nestedLocales;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Translation] Error scanning directories:', error);
+  }
+
+  return null;
+}
+
 function getNestedValue(obj: any, path: string): string | null {
   const keys = path.split('.');
   let current = obj;
-
+  
   for (const key of keys) {
     if (current && typeof current === 'object' && key in current) {
       current = current[key];
@@ -91,6 +114,32 @@ function getNestedValue(obj: any, path: string): string | null {
 
 export function clearTranslationCache() {
   translationCache = {};
+}
+
+function tryParseJsonFile(filePath: string, fileName: string): any {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const cleanedContent = stripJsonComments(content);
+    return JSON.parse(cleanedContent);
+  } catch (error: any) {
+    console.error(`[Translation] Failed to parse ${fileName}:`, error.message);
+    return {};
+  }
+}
+
+function stripJsonComments(jsonString: string): string {
+  let result = jsonString;
+  
+  // Remove single-line comments (// ...) but preserve strings
+  result = result.replace(/("(?:[^"\\]|\\.)*")|\/\/.*/g, '$1');
+  
+  // Remove multi-line comments (/* ... */) but preserve strings
+  result = result.replace(/("(?:[^"\\]|\\.)*")|\/\*[\s\S]*?\*\//g, '$1');
+  
+  // Remove trailing commas before closing brackets/braces
+  result = result.replace(/,(\s*[}\]])/g, '$1');
+  
+  return result;
 }
 
 export function resolveSchemaTranslations(schema: any, workspaceFolder?: vscode.WorkspaceFolder): any {
@@ -139,6 +188,11 @@ function resolveSectionSchema(schema: any, workspaceFolder?: vscode.WorkspaceFol
 
 function resolveSettingsGroup(group: any, workspaceFolder?: vscode.WorkspaceFolder): any {
   const resolved = { ...group };
+
+  // Resolve the group name if it has a translation key
+  if (resolved.name && typeof resolved.name === 'string') {
+    resolved.name = resolveTranslation(resolved.name, workspaceFolder);
+  }
 
   if (resolved.settings && Array.isArray(resolved.settings)) {
     resolved.settings = resolveSettings(resolved.settings, workspaceFolder);
