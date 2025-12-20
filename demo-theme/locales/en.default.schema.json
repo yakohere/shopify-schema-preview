@@ -1,0 +1,69 @@
+{
+  "names": {
+    "collection_container": "Collection Container",
+    "featured_collection": "Featured Collection",
+    "hero_banner": "Hero Banner",
+    "product_grid": "Product Grid",
+    "testimonials": "Customer Testimonials",
+    "newsletter": "Newsletter Signup"
+  },
+  "settings": {
+    "type": "Layout Type",
+    "card_size": "Card Size",
+    "mobile_card_size": "Mobile Card Size",
+    "auto_load_products": "Auto-load Products",
+    "products_per_page": "Products Per Page",
+    "width": "Section Width",
+    "full_width_on_mobile": "Full Width on Mobile",
+    "horizontal_gap": "Horizontal Gap",
+    "vertical_gap": "Vertical Gap",
+    "left_padding": "Left Padding",
+    "right_padding": "Right Padding",
+    "top_padding": "Top Padding",
+    "bottom_padding": "Bottom Padding",
+    "color_scheme": "Color Scheme",
+    "heading": "Heading",
+    "subheading": "Subheading",
+    "button_text": "Button Text",
+    "button_link": "Button Link",
+    "image": "Image",
+    "video_url": "Video URL",
+    "enable_parallax": "Enable Parallax Effect",
+    "text_alignment": "Text Alignment",
+    "overlay_opacity": "Overlay Opacity",
+    "show_border": "Show Border",
+    "border_radius": "Border Radius",
+    "animation_speed": "Animation Speed"
+  },
+  "options": {
+    "grid": "Grid Layout",
+    "editorial": "Editorial Layout",
+    "small": "Small",
+    "medium": "Medium",
+    "large": "Large",
+    "extra_large": "Extra Large",
+    "page": "Page Width",
+    "full": "Full Width",
+    "left": "Left",
+    "center": "Center",
+    "right": "Right",
+    "none": "None",
+    "fade": "Fade",
+    "slide": "Slide",
+    "zoom": "Zoom"
+  },
+  "content": {
+    "layout": "Layout Settings",
+    "section_layout": "Section Styling",
+    "typography": "Typography",
+    "spacing": "Spacing",
+    "colors": "Colors",
+    "animation": "Animation"
+  },
+  "info": {
+    "products_per_page": "Number of products to display per page",
+    "parallax_effect": "Creates a scrolling effect with the background",
+    "overlay_opacity": "Adjust the darkness of the overlay on the image"
+  }
+}
+

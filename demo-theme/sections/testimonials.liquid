@@ -1,0 +1,175 @@
+<div class="testimonials">
+  <div class="testimonials__container">
+    {% if section.settings.heading != blank %}
+      <h2 class="testimonials__heading">{{ section.settings.heading }}</h2>
+    {% endif %}
+
+    {% for block in section.blocks %}
+      <div class="testimonial-card">
+        {{ block.settings.quote }}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "t:names.testimonials",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "t:settings.heading",
+      "default": "What Our Customers Say"
+    },
+    {
+      "type": "richtext",
+      "id": "description",
+      "label": "Description",
+      "default": "<p>Don't just take our word for it</p>"
+    },
+    {
+      "type": "number",
+      "id": "columns",
+      "label": "Columns",
+      "default": 3,
+      "min": 1,
+      "max": 4
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_autoplay",
+      "label": "Enable Auto-play",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "autoplay_speed",
+      "label": "Auto-play Speed",
+      "min": 2,
+      "max": 10,
+      "step": 1,
+      "unit": "s",
+      "default": 5,
+      "visible_if": "{{ section.settings.enable_autoplay == true }}"
+    },
+    {
+      "type": "font_picker",
+      "id": "heading_font",
+      "label": "Heading Font",
+      "default": "assistant_n4"
+    },
+    {
+      "type": "header",
+      "content": "t:content.section_layout"
+    },
+    {
+      "type": "color_scheme",
+      "id": "color_scheme",
+      "label": "t:settings.color_scheme",
+      "default": "scheme-2"
+    }
+  ],
+  "blocks": [
+    {
+      "type": "testimonial",
+      "name": "Customer Testimonial",
+      "settings": [
+        {
+          "type": "textarea",
+          "id": "quote",
+          "label": "Quote",
+          "default": "This product changed my life!",
+          "placeholder": "Enter customer testimonial..."
+        },
+        {
+          "type": "text",
+          "id": "author",
+          "label": "Author Name",
+          "default": "Happy Customer"
+        },
+        {
+          "type": "text",
+          "id": "author_title",
+          "label": "Author Title",
+          "default": "Verified Buyer",
+          "placeholder": "e.g., CEO, Customer, etc."
+        },
+        {
+          "type": "image_picker",
+          "id": "author_image",
+          "label": "Author Photo"
+        },
+        {
+          "type": "range",
+          "id": "rating",
+          "label": "Star Rating",
+          "min": 1,
+          "max": 5,
+          "step": 1,
+          "default": 5,
+          "unit": "★"
+        }
+      ]
+    },
+    {
+      "type": "featured_review",
+      "name": "Featured Review",
+      "settings": [
+        {
+          "type": "text",
+          "id": "review_title",
+          "label": "Review Title",
+          "default": "Absolutely Amazing!"
+        },
+        {
+          "type": "richtext",
+          "id": "review_content",
+          "label": "Review Content",
+          "default": "<p>I've been using this product for months and it's incredible!</p>"
+        },
+        {
+          "type": "text",
+          "id": "reviewer_name",
+          "label": "Reviewer Name",
+          "default": "Sarah M."
+        },
+        {
+          "type": "checkbox",
+          "id": "verified_purchase",
+          "label": "Show Verified Purchase Badge",
+          "default": true
+        },
+        {
+          "type": "select",
+          "id": "highlight_color",
+          "label": "Highlight Color",
+          "options": [
+            { "value": "blue", "label": "Blue" },
+            { "value": "green", "label": "Green" },
+            { "value": "purple", "label": "Purple" }
+          ],
+          "default": "blue"
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Testimonials",
+      "blocks": [
+        {
+          "type": "testimonial"
+        },
+        {
+          "type": "testimonial"
+        },
+        {
+          "type": "testimonial"
+        }
+      ]
+    }
+  ]
+}
+{% endschema %}
+

@@ -1,0 +1,51 @@
+{
+  "name": "shopify-settings-preview",
+  "displayName": "Shopify Settings Preview",
+  "description": "Preview Shopify section/block schema settings visually",
+  "version": "0.0.1",
+  "publisher": "yakohere",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:liquid"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "shopify-settings-preview.showPreview",
+        "title": "Shopify: Preview Schema Settings",
+        "icon": "$(preview)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "shopify-settings-preview.showPreview",
+          "when": "editorLangId == liquid || (editorLangId == json && resourceFilename == settings_schema.json) || (editorLangId == jsonc && resourceFilename == settings_schema.json)",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  }
+}
+

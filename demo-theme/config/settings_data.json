@@ -1,0 +1,20 @@
+{
+  "current": {
+    "color_primary": "#008065",
+    "color_secondary": "#005bd3",
+    "color_text": "#202223",
+    "color_background": "#ffffff",
+    "font_heading": "assistant_n4",
+    "font_body": "assistant_n4",
+    "container_width": 1200,
+    "products_per_row_desktop": 4,
+    "cart_type": "drawer"
+  },
+  "presets": {
+    "Default": {
+      "color_primary": "#008060",
+      "color_secondary": "#005bd3"
+    }
+  }
+}
+
