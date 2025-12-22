@@ -2,8 +2,8 @@
   "name": "shopify-settings-preview",
   "displayName": "Shopify Settings Preview",
   "description": "Preview Shopify section/block schema settings visually",
-  "version": "0.0.1",
-  "publisher": "yakohere",
+  "version": "0.0.2",
+  "publisher": "YakhyoIsmoiljonov",
   "repository": {
     "type": "git",
     "url": "https://github.com/yakohere/shopify-settings-preview"
