@@ -340,12 +340,12 @@ export class SchemaPreviewPanel {
           <div class="form-field">
             <label class="field-label">${label}</label>
             ${helpText ? `<div class="field-help">${helpText}</div>` : ''}
-            <div class="select-wrapper">
-              <select class="field-select" data-default="${escapeHtml(setting.default || '')}">
-                ${options.map((opt: any) => `
-                  <option value="${opt.value}" ${opt.value === setting.default ? 'selected' : ''}>${opt.label}</option>
-                `).join('')}
-              </select>
+            <div class="select-grid">
+              ${options.map((opt: any) => `
+                <div class="select-option ${opt.value === setting.default ? 'selected' : ''}" data-value="${opt.value}">
+                  <div class="select-option-label">${opt.label}</div>
+                </div>
+              `).join('')}
             </div>
           </div>
         `;
@@ -452,32 +452,42 @@ export class SchemaPreviewPanel {
         `;
 
       case 'color_scheme':
+        const schemeOptions = [
+          { value: 'scheme-1', label: 'Scheme 1' },
+          { value: 'scheme-2', label: 'Scheme 2' },
+          { value: 'scheme-3', label: 'Scheme 3' }
+        ];
         return `
           <div class="form-field">
             <label class="field-label">${label}</label>
             ${helpText ? `<div class="field-help">${helpText}</div>` : ''}
-            <div class="select-wrapper">
-              <select class="field-select" data-default="${escapeHtml(setting.default || 'scheme-1')}">
-                <option value="scheme-1" ${setting.default === 'scheme-1' ? 'selected' : ''}>Scheme 1</option>
-                <option value="scheme-2" ${setting.default === 'scheme-2' ? 'selected' : ''}>Scheme 2</option>
-                <option value="scheme-3" ${setting.default === 'scheme-3' ? 'selected' : ''}>Scheme 3</option>
-              </select>
+            <div class="select-grid">
+              ${schemeOptions.map((opt: any) => `
+                <div class="select-option ${opt.value === (setting.default || 'scheme-1') ? 'selected' : ''}" data-value="${opt.value}">
+                  <div class="select-option-label">${opt.label}</div>
+                </div>
+              `).join('')}
             </div>
           </div>
         `;
 
       case 'font_picker':
+        const fontOptions = [
+          { value: 'assistant_n4', label: 'Assistant' },
+          { value: 'helvetica', label: 'Helvetica' },
+          { value: 'arial', label: 'Arial' },
+          { value: 'times_new_roman', label: 'Times New Roman' }
+        ];
         return `
           <div class="form-field">
             <label class="field-label">${label}</label>
             ${helpText ? `<div class="field-help">${helpText}</div>` : ''}
-            <div class="select-wrapper">
-              <select class="field-select" data-default="${escapeHtml(setting.default || 'assistant_n4')}">
-                <option value="assistant_n4" ${setting.default === 'assistant_n4' ? 'selected' : ''}>Assistant</option>
-                <option value="helvetica">Helvetica</option>
-                <option value="arial">Arial</option>
-                <option value="times_new_roman">Times New Roman</option>
-              </select>
+            <div class="select-grid">
+              ${fontOptions.map((opt: any) => `
+                <div class="select-option ${opt.value === (setting.default || 'assistant_n4') ? 'selected' : ''}" data-value="${opt.value}">
+                  <div class="select-option-label">${opt.label}</div>
+                </div>
+              `).join('')}
             </div>
           </div>
         `;
@@ -514,16 +524,21 @@ export class SchemaPreviewPanel {
       case 'blog':
       case 'page':
       case 'article':
+        const resourceOptions = [
+          { value: '', label: `Select ${setting.type}...` },
+          { value: 'example-1', label: `Example ${setting.type} 1` },
+          { value: 'example-2', label: `Example ${setting.type} 2` }
+        ];
         return `
           <div class="form-field">
             <label class="field-label">${label}</label>
             ${helpText ? `<div class="field-help">${helpText}</div>` : ''}
-            <div class="select-wrapper">
-              <select class="field-select" data-default="">
-                <option value="">Select ${setting.type}...</option>
-                <option value="example-1">Example ${setting.type} 1</option>
-                <option value="example-2">Example ${setting.type} 2</option>
-              </select>
+            <div class="select-grid">
+              ${resourceOptions.map((opt: any) => `
+                <div class="select-option ${opt.value === '' ? 'selected' : ''}" data-value="${opt.value}">
+                  <div class="select-option-label">${opt.label}</div>
+                </div>
+              `).join('')}
             </div>
           </div>
         `;
@@ -540,7 +555,7 @@ export class SchemaPreviewPanel {
       default:
         return `
           <div class="form-field">
-            <div class="unsupported-warning">⚠️ Unsupported setting type: ${setting.type}</div>
+            <div class="unsupported-warning">Unsupported setting type: ${setting.type}</div>
           </div>
         `;
     }
@@ -832,7 +847,6 @@ export class SchemaPreviewPanel {
       }
 
       .field-input,
-      .field-select,
       .field-textarea {
         width: 100%;
         padding: 4px 8px;
@@ -852,13 +866,11 @@ export class SchemaPreviewPanel {
       }
 
       .field-input:hover,
-      .field-select:hover,
       .field-textarea:hover {
         border-color: var(--vscode-inputOption-activeBorder);
       }
 
       .field-input:focus,
-      .field-select:focus,
       .field-textarea:focus {
         outline: none;
         border-color: var(--vscode-focusBorder);
@@ -866,7 +878,6 @@ export class SchemaPreviewPanel {
       }
 
       .field-input:disabled,
-      .field-select:disabled,
       .field-textarea:disabled {
         background-color: var(--vscode-input-background);
         border-color: var(--vscode-input-border);
@@ -881,42 +892,76 @@ export class SchemaPreviewPanel {
         padding: 6px 8px;
       }
 
-      .select-wrapper {
-        position: relative;
-        display: block;
+      .select-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+        margin-top: 2px;
       }
 
-      .select-wrapper::after {
+      .select-option {
+        display: flex;
+        align-items: center;
+        padding: 8px 10px;
+        background-color: var(--vscode-input-background);
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        position: relative;
+      }
+
+      .select-option:hover {
+        background-color: var(--vscode-list-hoverBackground);
+        border-color: var(--vscode-focusBorder);
+      }
+
+      .select-option.selected {
+        background-color: var(--vscode-list-activeSelectionBackground);
+        border-color: var(--vscode-focusBorder);
+        border-width: 1.5px;
+      }
+
+      .select-option.selected .select-option-label {
+        color: var(--vscode-list-activeSelectionForeground);
+        font-weight: 600;
+      }
+
+      .select-option-check {
+        width: 14px;
+        height: 14px;
+        border: 1px solid var(--vscode-checkbox-border);
+        border-radius: 3px;
+        margin-right: 8px;
+        flex-shrink: 0;
+        background-color: var(--vscode-checkbox-background);
+        position: relative;
+        transition: all 0.15s ease;
+      }
+
+      .select-option.selected .select-option-check {
+        background-color: var(--vscode-checkbox-selectBackground);
+        border-color: var(--vscode-checkbox-selectBorder);
+      }
+
+      .select-option.selected .select-option-check::after {
         content: '';
         position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 0;
-        height: 0;
-        border-left: 4px solid transparent;
-        border-right: 4px solid transparent;
-        border-top: 5px solid var(--vscode-foreground);
-        pointer-events: none;
-        opacity: 0.7;
+        left: 3px;
+        top: 0px;
+        width: 3px;
+        height: 7px;
+        border: solid var(--vscode-checkbox-selectForeground);
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
       }
 
-      .field-select {
-        cursor: pointer;
-        padding-right: 28px;
-        -webkit-appearance: none;
-        -moz-appearance: none;
-        appearance: none;
-        background-color: var(--vscode-input-background);
-      }
-
-      .field-select:hover {
-        background-color: var(--vscode-input-background);
-        cursor: pointer;
-      }
-
-      .field-select:focus {
-        background-color: var(--vscode-input-background);
+      .select-option-label {
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--vscode-foreground);
+        flex: 1;
+        word-break: break-word;
       }
 
       .field-checkbox-wrapper {
@@ -1204,27 +1249,15 @@ export class SchemaPreviewPanel {
   private _getScript(): string {
     return `
       const vscode = acquireVsCodeApi();
-      
-      // Allow viewing select options but reset to default value after interaction
-      document.querySelectorAll('select.field-select').forEach(select => {
-        const defaultValue = select.getAttribute('data-default');
-        
-        select.addEventListener('change', (e) => {
-          // Reset to default value (allow viewing options but not changing)
-          setTimeout(() => {
-            e.target.value = defaultValue;
-          }, 100);
-        });
-        
-        select.addEventListener('blur', (e) => {
-          // Ensure it's back to default when user clicks away
-          e.target.value = defaultValue;
-        });
-      });
 
       // Handle clicks on settings to navigate to their location in the file
       document.querySelectorAll('.setting-item[data-clickable="true"]').forEach(item => {
         item.addEventListener('click', (e) => {
+          // Don't navigate if clicking on a select option
+          if (e.target.closest('.select-option')) {
+            return;
+          }
+          
           const settingId = item.getAttribute('data-setting-id');
           if (settingId) {
             vscode.postMessage({
