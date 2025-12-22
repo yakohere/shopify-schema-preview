@@ -1,12 +1,12 @@
 {
-  "name": "shopify-settings-preview",
-  "displayName": "Shopify Settings Preview",
-  "description": "Preview Shopify section/block schema settings visually",
+  "name": "shopify-schema-preview",
+  "displayName": "Shopify Schema Preview",
+  "description": "Visual preview of Shopify schema settings in VS Code",
   "version": "0.0.2",
   "publisher": "YakhyoIsmoiljonov",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yakohere/shopify-settings-preview"
+    "url": "https://github.com/yakohere/shopify-schema-preview"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -21,7 +21,7 @@
   "contributes": {
     "commands": [
       {
-        "command": "shopify-settings-preview.showPreview",
+        "command": "shopify-schema-preview.showPreview",
         "title": "Shopify: Preview Schema Settings",
         "icon": "$(preview)"
       }
@@ -29,7 +29,7 @@
     "menus": {
       "editor/title": [
         {
-          "command": "shopify-settings-preview.showPreview",
+          "command": "shopify-schema-preview.showPreview",
           "when": "editorLangId == liquid || (editorLangId == json && resourceFilename == settings_schema.json) || (editorLangId == jsonc && resourceFilename == settings_schema.json)",
           "group": "navigation"
         }

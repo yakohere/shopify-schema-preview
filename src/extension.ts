@@ -5,10 +5,10 @@ import { extractSchemaFromDocument } from './schemaParser';
 import { resolveSchemaTranslations, clearTranslationCache } from './translationResolver';
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Shopify Settings Preview extension activated');
+  console.log('Shopify Schema Preview extension activated');
 
   const disposable = vscode.commands.registerCommand(
-    'shopify-settings-preview.showPreview',
+    'shopify-schema-preview.showPreview',
     () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
@@ -101,7 +101,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 function suggestPreview() {
-  const config = vscode.workspace.getConfiguration('shopify-settings-preview');
+  const config = vscode.workspace.getConfiguration('shopify-schema-preview');
   const autoSuggest = config.get('autoSuggest', true);
   
   if (autoSuggest && !SchemaPreviewPanel.currentPanel) {
@@ -110,7 +110,7 @@ function suggestPreview() {
       'Preview Settings'
     ).then(selection => {
       if (selection === 'Preview Settings') {
-        vscode.commands.executeCommand('shopify-settings-preview.showPreview');
+        vscode.commands.executeCommand('shopify-schema-preview.showPreview');
       }
     });
   }
