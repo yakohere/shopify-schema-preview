@@ -995,15 +995,18 @@ export class SchemaPreviewPanel {
       }
 
       .field-checkbox:checked::after {
-        content: '';
+        content: '✓';
         position: absolute;
-        left: 4px;
+        left: 2px;
         top: 1px;
-        width: 3px;
-        height: 7px;
-        border: solid var(--vscode-checkbox-selectForeground);
-        border-width: 0 2px 2px 0;
-        transform: rotate(45deg);
+        font-size: 12px;
+        color: var(--vscode-checkbox-border);
+        font-weight: bold;
+        line-height: 1;
+      }
+
+      .field-checkbox:checked::after {
+        color: var(--vscode-checkbox-selectBorder);
       }
 
       .field-checkbox:disabled {
