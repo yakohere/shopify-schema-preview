@@ -42,7 +42,7 @@ export function activate(context: vscode.ExtensionContext) {
       const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
       const resolvedSchema = resolveSchemaTranslations(schema, workspaceFolder);
 
-      SchemaPreviewPanel.createOrShow(context.extensionUri, resolvedSchema, workspaceFolder);
+      SchemaPreviewPanel.createOrShow(context.extensionUri, resolvedSchema, workspaceFolder, document);
     }
   );
 
@@ -62,7 +62,7 @@ export function activate(context: vscode.ExtensionContext) {
           if (SchemaPreviewPanel.currentPanel) {
             const workspaceFolder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
             const resolvedSchema = resolveSchemaTranslations(schema, workspaceFolder);
-            SchemaPreviewPanel.currentPanel.updateSchema(resolvedSchema);
+            SchemaPreviewPanel.currentPanel.updateSchema(resolvedSchema, editor.document);
           } else {
             // Only suggest if panel is not open
             suggestPreview();
@@ -87,7 +87,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (schema) {
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(event.document.uri);
         const resolvedSchema = resolveSchemaTranslations(schema, workspaceFolder);
-        SchemaPreviewPanel.currentPanel.updateSchema(resolvedSchema);
+        SchemaPreviewPanel.currentPanel.updateSchema(resolvedSchema, event.document);
       }
     }
   }, null, context.subscriptions);

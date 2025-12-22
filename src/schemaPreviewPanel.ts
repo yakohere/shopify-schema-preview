@@ -10,13 +10,14 @@ export class SchemaPreviewPanel {
   private _disposables: vscode.Disposable[] = [];
   private _schema: ShopifySchema;
   private _workspaceFolder?: vscode.WorkspaceFolder;
+  private _sourceDocument?: vscode.TextDocument;
 
-  public static createOrShow(extensionUri: vscode.Uri, schema: ShopifySchema, workspaceFolder?: vscode.WorkspaceFolder) {
+  public static createOrShow(extensionUri: vscode.Uri, schema: ShopifySchema, workspaceFolder?: vscode.WorkspaceFolder, sourceDocument?: vscode.TextDocument) {
     const column = vscode.ViewColumn.Beside;
 
     if (SchemaPreviewPanel.currentPanel) {
       SchemaPreviewPanel.currentPanel._panel.reveal(column);
-      SchemaPreviewPanel.currentPanel.updateSchema(schema);
+      SchemaPreviewPanel.currentPanel.updateSchema(schema, sourceDocument);
       return;
     }
 
@@ -31,14 +32,15 @@ export class SchemaPreviewPanel {
       }
     );
 
-    SchemaPreviewPanel.currentPanel = new SchemaPreviewPanel(panel, extensionUri, schema, workspaceFolder);
+    SchemaPreviewPanel.currentPanel = new SchemaPreviewPanel(panel, extensionUri, schema, workspaceFolder, sourceDocument);
   }
 
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, schema: ShopifySchema, workspaceFolder?: vscode.WorkspaceFolder) {
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, schema: ShopifySchema, workspaceFolder?: vscode.WorkspaceFolder, sourceDocument?: vscode.TextDocument) {
     this._panel = panel;
     this._extensionUri = extensionUri;
     this._schema = schema;
     this._workspaceFolder = workspaceFolder;
+    this._sourceDocument = sourceDocument;
 
     this._update();
 
@@ -50,6 +52,9 @@ export class SchemaPreviewPanel {
           case 'alert':
             vscode.window.showInformationMessage(message.text);
             return;
+          case 'navigateToSetting':
+            this._navigateToSetting(message.settingId);
+            return;
         }
       },
       null,
@@ -57,8 +62,11 @@ export class SchemaPreviewPanel {
     );
   }
 
-  public updateSchema(schema: ShopifySchema) {
+  public updateSchema(schema: ShopifySchema, sourceDocument?: vscode.TextDocument) {
     this._schema = schema;
+    if (sourceDocument) {
+      this._sourceDocument = sourceDocument;
+    }
     this._update();
   }
 
@@ -87,6 +95,29 @@ export class SchemaPreviewPanel {
       if (x) {
         x.dispose();
       }
+    }
+  }
+
+  private async _navigateToSetting(settingId: string) {
+    if (!this._sourceDocument) {
+      return;
+    }
+
+    const text = this._sourceDocument.getText();
+    const searchPattern = new RegExp(`["']id["']\\s*:\\s*["']${settingId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'i');
+    const match = text.match(searchPattern);
+
+    if (match && match.index !== undefined) {
+      const position = this._sourceDocument.positionAt(match.index);
+      const editor = await vscode.window.showTextDocument(this._sourceDocument, {
+        viewColumn: vscode.ViewColumn.One,
+        preserveFocus: false,
+      });
+
+      const line = position.line;
+      const range = new vscode.Range(line, 0, line, 0);
+      editor.selection = new vscode.Selection(range.start, range.end);
+      editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
     }
   }
 
@@ -254,8 +285,10 @@ export class SchemaPreviewPanel {
       ? `<div class="conditional-note">Conditional: ${escapeHtml(setting.visible_if)}</div>`
       : '';
 
+    const settingId = setting.id ? escapeHtml(setting.id) : '';
+
     return `
-      <div class="setting-item">
+      <div class="setting-item" data-setting-id="${settingId}" data-clickable="${settingId ? 'true' : 'false'}">
         ${this._renderControl(setting)}
         ${conditionalNote}
       </div>
@@ -475,6 +508,7 @@ export class SchemaPreviewPanel {
         `;
 
       case 'collection':
+      case 'collection_list':
       case 'product':
       case 'product_list':
       case 'blog':
@@ -521,12 +555,12 @@ export class SchemaPreviewPanel {
       }
 
       body {
-        font-family: -apple-system, BlinkMacSystemFont, 'San Francisco', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-        font-size: 13px;
-        line-height: 20px;
-        color: #202223;
-        background: #f6f6f7;
-        padding: 20px;
+        font-family: var(--vscode-font-family);
+        font-size: 12px;
+        line-height: 18px;
+        color: var(--vscode-foreground);
+        background: var(--vscode-editor-background);
+        padding: 12px;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
@@ -537,46 +571,46 @@ export class SchemaPreviewPanel {
       }
 
       .schema-header {
-        background: white;
-        padding: 20px;
-        border-radius: 8px;
-        margin-bottom: 12px;
-        box-shadow: 0 1px 0 0 rgba(0,0,0,0.05);
-        border: 1px solid #e1e3e5;
+        background: var(--vscode-editor-background);
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        box-shadow: 0 1px 0 0 var(--vscode-widget-shadow);
+        border: 1px solid var(--vscode-panel-border);
       }
 
       .schema-title {
-        font-size: 17px;
+        font-size: 14px;
         font-weight: 600;
-        color: #202223;
-        line-height: 24px;
+        color: var(--vscode-foreground);
+        line-height: 20px;
         margin-bottom: 0;
       }
 
       .schema-badge {
         display: inline-flex;
         align-items: center;
-        padding: 2px 8px;
-        background-color: #f1f2f4;
-        color: #202223;
-        border-radius: 4px;
-        font-size: 12px;
+        padding: 2px 6px;
+        background-color: var(--vscode-badge-background);
+        color: var(--vscode-badge-foreground);
+        border-radius: 3px;
+        font-size: 11px;
         font-weight: 500;
-        margin-top: 8px;
-        border: 1px solid #e1e3e5;
+        margin-top: 6px;
+        border: 1px solid var(--vscode-panel-border);
       }
 
       .section-group {
-        margin-bottom: 24px;
+        margin-bottom: 16px;
       }
 
       .section-group-title {
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 600;
-        color: #202223;
-        margin-bottom: 12px;
-        padding-bottom: 8px;
-        border-bottom: 2px solid #e1e3e5;
+        color: var(--vscode-foreground);
+        margin-bottom: 8px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--vscode-panel-border);
       }
 
       .settings-list {
@@ -586,18 +620,18 @@ export class SchemaPreviewPanel {
       }
 
       .block-item {
-        background: white;
-        border: 1.5px solid #e1e3e5;
-        border-radius: 8px;
-        margin-bottom: 16px;
+        background: var(--vscode-editor-background);
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 6px;
+        margin-bottom: 10px;
         overflow: hidden;
-        box-shadow: 0 1px 0 0 rgba(0,0,0,0.05);
+        box-shadow: 0 1px 0 0 var(--vscode-widget-shadow);
       }
 
       .block-header {
-        background: linear-gradient(180deg, #fafbfb 0%, #f6f6f7 100%);
-        padding: 12px 16px;
-        border-bottom: 1.5px solid #e1e3e5;
+        background: var(--vscode-input-background);
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--vscode-panel-border);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -606,38 +640,38 @@ export class SchemaPreviewPanel {
       .block-title {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         font-weight: 600;
-        color: #202223;
-        font-size: 14px;
-        line-height: 20px;
+        color: var(--vscode-foreground);
+        font-size: 12px;
+        line-height: 18px;
       }
 
       .block-icon {
-        font-size: 16px;
+        font-size: 14px;
       }
 
       .block-type {
         display: inline-flex;
         align-items: center;
-        padding: 2px 8px;
-        background-color: #e3f1ff;
-        color: #004b91;
-        border-radius: 4px;
-        font-size: 11px;
+        padding: 2px 6px;
+        background-color: var(--vscode-badge-background);
+        color: var(--vscode-badge-foreground);
+        border-radius: 3px;
+        font-size: 10px;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.3px;
       }
 
       .block-settings {
-        padding: 12px;
+        padding: 8px;
       }
 
       .block-settings .setting-item {
-        margin-bottom: 12px;
+        margin-bottom: 8px;
         box-shadow: none;
-        border: 1px solid #e1e3e5;
+        border: 1px solid var(--vscode-panel-border);
       }
 
       .block-settings .setting-item:last-child {
@@ -645,78 +679,79 @@ export class SchemaPreviewPanel {
       }
 
       .block-empty {
-        padding: 20px;
+        padding: 12px;
         text-align: center;
-        color: #8c9196;
-        font-size: 13px;
+        color: var(--vscode-descriptionForeground);
+        font-size: 11px;
         font-style: italic;
       }
 
       .theme-info-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        background: var(--vscode-textBlockQuote-background);
+        color: var(--vscode-foreground);
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 12px;
+        box-shadow: 0 1px 0 0 var(--vscode-widget-shadow);
+        border: 1px solid var(--vscode-panel-border);
       }
 
       .theme-info-title {
-        font-size: 16px;
+        font-size: 13px;
         font-weight: 600;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
         opacity: 0.9;
       }
 
       .theme-info-item {
-        font-size: 13px;
-        line-height: 20px;
-        margin-bottom: 4px;
+        font-size: 11px;
+        line-height: 16px;
+        margin-bottom: 3px;
         opacity: 0.95;
       }
 
       .theme-info-item strong {
         opacity: 0.8;
-        margin-right: 8px;
+        margin-right: 6px;
       }
 
       .theme-settings-group {
-        background: white;
-        border: 1.5px solid #e1e3e5;
-        border-radius: 8px;
-        margin-bottom: 16px;
+        background: var(--vscode-editor-background);
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 6px;
+        margin-bottom: 10px;
         overflow: hidden;
-        box-shadow: 0 1px 0 0 rgba(0,0,0,0.05);
+        box-shadow: 0 1px 0 0 var(--vscode-widget-shadow);
       }
 
       .theme-group-header {
-        background: linear-gradient(180deg, #fafbfb 0%, #f6f6f7 100%);
-        padding: 16px 20px;
-        border-bottom: 1.5px solid #e1e3e5;
+        background: var(--vscode-input-background);
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--vscode-panel-border);
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 8px;
       }
 
       .theme-group-icon {
-        font-size: 20px;
+        font-size: 16px;
         line-height: 1;
       }
 
       .theme-group-title {
-        font-size: 16px;
+        font-size: 13px;
         font-weight: 600;
-        color: #202223;
-        line-height: 24px;
+        color: var(--vscode-foreground);
+        line-height: 18px;
         margin: 0;
       }
 
       .theme-settings-group .settings-list {
-        padding: 12px;
+        padding: 8px;
       }
 
       .theme-settings-group .setting-item {
-        margin-bottom: 12px;
+        margin-bottom: 8px;
       }
 
       .theme-settings-group .setting-item:last-child {
@@ -724,9 +759,9 @@ export class SchemaPreviewPanel {
       }
 
       .setting-header {
-        padding: 12px 0;
-        margin: 20px 0 12px 0;
-        border-bottom: 1px solid #e1e3e5;
+        padding: 8px 0;
+        margin: 12px 0 8px 0;
+        border-bottom: 1px solid var(--vscode-panel-border);
       }
 
       .setting-header:first-child {
@@ -735,37 +770,39 @@ export class SchemaPreviewPanel {
       }
 
       .setting-header h2 {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
-        color: #6d7175;
+        color: var(--vscode-descriptionForeground);
         text-transform: uppercase;
-        letter-spacing: 0.8px;
-        line-height: 16px;
+        letter-spacing: 0.5px;
+        line-height: 14px;
       }
 
       .setting-item {
-        background: white;
-        padding: 16px;
-        border-radius: 8px;
-        margin-bottom: 12px;
-        box-shadow: 0 1px 0 0 rgba(0,0,0,0.05);
-        border: 1px solid #e1e3e5;
+        background: var(--vscode-editor-background);
+        padding: 10px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        box-shadow: 0 1px 0 0 var(--vscode-widget-shadow);
+        border: 1px solid var(--vscode-panel-border);
         transition: box-shadow 0.1s ease;
+        cursor: pointer;
       }
 
       .setting-item:hover {
-        box-shadow: 0 1px 0 0 rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 0 0 var(--vscode-widget-shadow), 0 0 0 1px var(--vscode-focusBorder);
+        border-color: var(--vscode-focusBorder);
       }
 
       .conditional-note {
-        margin-top: 12px;
-        padding: 12px;
-        background-color: #fffbf4;
-        border: 1px solid #ffd79d;
-        color: #916a00;
-        font-size: 12px;
-        border-radius: 8px;
-        line-height: 16px;
+        margin-top: 8px;
+        padding: 8px;
+        background-color: var(--vscode-inputValidation-warningBackground);
+        border: 1px solid var(--vscode-inputValidation-warningBorder);
+        color: var(--vscode-inputValidation-warningForeground);
+        font-size: 11px;
+        border-radius: 4px;
+        line-height: 14px;
       }
 
       .conditional-note::before {
@@ -780,67 +817,68 @@ export class SchemaPreviewPanel {
       .field-label {
         display: block;
         font-weight: 500;
-        color: #202223;
+        color: var(--vscode-foreground);
         margin-bottom: 4px;
-        font-size: 13px;
-        line-height: 20px;
+        font-size: 12px;
+        line-height: 16px;
       }
 
       .field-help {
-        color: #6d7175;
-        font-size: 12px;
-        line-height: 16px;
-        margin-top: 4px;
-        margin-bottom: 8px;
+        color: var(--vscode-descriptionForeground);
+        font-size: 11px;
+        line-height: 14px;
+        margin-top: 3px;
+        margin-bottom: 6px;
       }
 
       .field-input,
       .field-select,
       .field-textarea {
         width: 100%;
-        padding: 6px 12px;
-        border: 1.5px solid #c9cccf;
-        border-radius: 8px;
-        font-family: inherit;
-        font-size: 13px;
-        line-height: 20px;
-        color: #202223;
-        background-color: #ffffff;
+        padding: 4px 8px;
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 4px;
+        font-family: var(--vscode-font-family);
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--vscode-input-foreground);
+        background-color: var(--vscode-input-background);
         transition: all 0.1s ease;
       }
 
       .field-input::placeholder,
       .field-textarea::placeholder {
-        color: #8c9196;
+        color: var(--vscode-input-placeholderForeground);
       }
 
       .field-input:hover,
       .field-select:hover,
       .field-textarea:hover {
-        border-color: #999fa4;
+        border-color: var(--vscode-inputOption-activeBorder);
       }
 
       .field-input:focus,
       .field-select:focus,
       .field-textarea:focus {
         outline: none;
-        border-color: #005bd3;
-        box-shadow: 0 0 0 1px #005bd3;
+        border-color: var(--vscode-focusBorder);
+        box-shadow: 0 0 0 1px var(--vscode-focusBorder);
       }
 
       .field-input:disabled,
       .field-select:disabled,
       .field-textarea:disabled {
-        background-color: #f6f6f7;
-        border-color: #e1e3e5;
-        color: #8c9196;
+        background-color: var(--vscode-input-background);
+        border-color: var(--vscode-input-border);
+        color: var(--vscode-disabledForeground);
         cursor: not-allowed;
+        opacity: 0.6;
       }
 
       .field-textarea {
-        min-height: 72px;
+        min-height: 60px;
         resize: vertical;
-        padding: 8px 12px;
+        padding: 6px 8px;
       }
 
       .select-wrapper {
@@ -851,33 +889,34 @@ export class SchemaPreviewPanel {
       .select-wrapper::after {
         content: '';
         position: absolute;
-        right: 14px;
+        right: 10px;
         top: 50%;
         transform: translateY(-50%);
         width: 0;
         height: 0;
-        border-left: 5px solid transparent;
-        border-right: 5px solid transparent;
-        border-top: 6px solid #76787a;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 5px solid var(--vscode-foreground);
         pointer-events: none;
+        opacity: 0.7;
       }
 
       .field-select {
         cursor: pointer;
-        padding-right: 40px;
+        padding-right: 28px;
         -webkit-appearance: none;
         -moz-appearance: none;
         appearance: none;
-        background-color: #fafbfb;
+        background-color: var(--vscode-input-background);
       }
 
       .field-select:hover {
-        background-color: #f6f6f7;
+        background-color: var(--vscode-input-background);
         cursor: pointer;
       }
 
       .field-select:focus {
-        background-color: white;
+        background-color: var(--vscode-input-background);
       }
 
       .field-checkbox-wrapper {
@@ -885,59 +924,59 @@ export class SchemaPreviewPanel {
         align-items: flex-start;
         cursor: not-allowed;
         user-select: none;
-        padding: 4px 0;
+        padding: 2px 0;
       }
 
       .field-checkbox {
-        width: 20px;
-        height: 20px;
-        margin-right: 12px;
+        width: 16px;
+        height: 16px;
+        margin-right: 8px;
         margin-top: 0;
         cursor: not-allowed;
-        border: 1.5px solid #c9cccf;
-        border-radius: 4px;
+        border: 1px solid var(--vscode-checkbox-border);
+        border-radius: 3px;
         -webkit-appearance: none;
         -moz-appearance: none;
         appearance: none;
-        background-color: white;
+        background-color: var(--vscode-checkbox-background);
         position: relative;
         flex-shrink: 0;
         transition: all 0.1s ease;
       }
 
       .field-checkbox:checked {
-        background-color: #008060;
-        border-color: #008060;
+        background-color: var(--vscode-checkbox-selectBackground);
+        border-color: var(--vscode-checkbox-selectBorder);
       }
 
       .field-checkbox:checked::after {
         content: '';
         position: absolute;
-        left: 6px;
-        top: 2px;
-        width: 4px;
-        height: 9px;
-        border: solid white;
+        left: 4px;
+        top: 1px;
+        width: 3px;
+        height: 7px;
+        border: solid var(--vscode-checkbox-selectForeground);
         border-width: 0 2px 2px 0;
         transform: rotate(45deg);
       }
 
       .field-checkbox:disabled {
-        opacity: 0.6;
+        opacity: 0.5;
       }
 
       .field-checkbox-label {
-        font-size: 13px;
-        line-height: 20px;
-        color: #202223;
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--vscode-foreground);
         font-weight: 400;
       }
 
       .radio-group {
         display: flex;
         flex-direction: column;
-        gap: 12px;
-        padding: 4px 0;
+        gap: 8px;
+        padding: 2px 0;
       }
 
       .radio-option {
@@ -948,75 +987,75 @@ export class SchemaPreviewPanel {
       }
 
       .radio-option input[type="radio"] {
-        width: 20px;
-        height: 20px;
-        margin-right: 12px;
+        width: 16px;
+        height: 16px;
+        margin-right: 8px;
         cursor: not-allowed;
-        border: 1.5px solid #c9cccf;
+        border: 1px solid var(--vscode-checkbox-border);
         -webkit-appearance: none;
         -moz-appearance: none;
         appearance: none;
         border-radius: 50%;
-        background-color: white;
+        background-color: var(--vscode-checkbox-background);
         position: relative;
         flex-shrink: 0;
         transition: all 0.1s ease;
       }
 
       .radio-option input[type="radio"]:checked {
-        border-color: #008060;
+        border-color: var(--vscode-checkbox-selectBorder);
       }
 
       .radio-option input[type="radio"]:checked::after {
         content: '';
         position: absolute;
-        left: 5px;
-        top: 5px;
-        width: 8px;
-        height: 8px;
+        left: 4px;
+        top: 4px;
+        width: 6px;
+        height: 6px;
         border-radius: 50%;
-        background-color: #008060;
+        background-color: var(--vscode-checkbox-selectBackground);
       }
 
       .radio-option input[type="radio"]:disabled {
-        opacity: 0.6;
+        opacity: 0.5;
       }
 
       .radio-option span {
-        font-size: 13px;
-        line-height: 20px;
-        color: #202223;
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--vscode-foreground);
       }
 
       .range-control {
         display: flex;
         align-items: center;
-        gap: 16px;
-        margin-top: 8px;
+        gap: 12px;
+        margin-top: 6px;
         position: relative;
       }
 
       .range-track {
         position: absolute;
         left: 0;
-        bottom: 9px;
-        right: 86px;
-        height: 6px;
-        background: #e1e3e5;
-        border-radius: 3px;
+        bottom: 8px;
+        right: 70px;
+        height: 4px;
+        background: var(--vscode-input-background);
+        border-radius: 2px;
         pointer-events: none;
       }
 
       .range-track-fill {
         height: 100%;
-        background: #008060;
-        border-radius: 3px;
+        background: var(--vscode-button-background);
+        border-radius: 2px;
         transition: width 0.1s ease;
       }
 
       .field-range {
         flex: 1;
-        height: 6px;
+        height: 4px;
         -webkit-appearance: none;
         appearance: none;
         background: transparent;
@@ -1027,36 +1066,36 @@ export class SchemaPreviewPanel {
       }
 
       .field-range::-webkit-slider-track {
-        height: 6px;
+        height: 4px;
         background: transparent;
-        border-radius: 3px;
+        border-radius: 2px;
       }
 
       .field-range::-moz-range-track {
-        height: 6px;
+        height: 4px;
         background: transparent;
-        border-radius: 3px;
+        border-radius: 2px;
       }
 
       .field-range::-webkit-slider-thumb {
         -webkit-appearance: none;
         appearance: none;
-        width: 20px;
-        height: 20px;
+        width: 16px;
+        height: 16px;
         border-radius: 50%;
-        background: white;
-        border: 2px solid #008060;
-        box-shadow: 0 0 0 1px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.12);
-        margin-top: -7px;
+        background: var(--vscode-editor-background);
+        border: 2px solid var(--vscode-button-background);
+        box-shadow: 0 0 0 1px var(--vscode-widget-shadow);
+        margin-top: -6px;
       }
 
       .field-range::-moz-range-thumb {
-        width: 20px;
-        height: 20px;
+        width: 16px;
+        height: 16px;
         border-radius: 50%;
-        background: white;
-        border: 2px solid #008060;
-        box-shadow: 0 0 0 1px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.12);
+        background: var(--vscode-editor-background);
+        border: 2px solid var(--vscode-button-background);
+        box-shadow: 0 0 0 1px var(--vscode-widget-shadow);
       }
 
       .field-range:disabled::-webkit-slider-thumb {
@@ -1068,40 +1107,40 @@ export class SchemaPreviewPanel {
       }
 
       .range-value {
-        min-width: 70px;
+        min-width: 60px;
         text-align: right;
         font-weight: 600;
-        color: #202223;
-        font-size: 13px;
-        line-height: 20px;
+        color: var(--vscode-foreground);
+        font-size: 11px;
+        line-height: 16px;
         font-variant-numeric: tabular-nums;
       }
 
       .color-picker {
         display: flex;
-        gap: 12px;
+        gap: 8px;
         align-items: center;
       }
 
       .color-swatch {
-        width: 36px;
-        height: 36px;
-        border: 1.5px solid #c9cccf;
-        border-radius: 8px;
+        width: 28px;
+        height: 28px;
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 4px;
         flex-shrink: 0;
-        box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
+        box-shadow: inset 0 0 0 1px var(--vscode-widget-shadow);
       }
 
       .field-color-text {
         flex: 1;
-        padding: 6px 12px;
-        border: 1.5px solid #c9cccf;
-        border-radius: 8px;
-        font-family: 'SF Mono', Menlo, Monaco, 'Courier New', monospace;
-        font-size: 12px;
-        line-height: 20px;
-        color: #202223;
-        background-color: #f6f6f7;
+        padding: 4px 8px;
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 4px;
+        font-family: var(--vscode-editor-font-family);
+        font-size: 11px;
+        line-height: 16px;
+        color: var(--vscode-input-foreground);
+        background-color: var(--vscode-input-background);
         text-transform: uppercase;
       }
 
@@ -1109,56 +1148,55 @@ export class SchemaPreviewPanel {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 6px 16px;
-        background-color: white;
-        color: #202223;
-        border: 1.5px solid #c9cccf;
-        border-radius: 8px;
-        font-size: 13px;
+        padding: 4px 12px;
+        background-color: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+        border: 1px solid var(--vscode-button-border);
+        border-radius: 4px;
+        font-size: 12px;
         font-weight: 500;
-        line-height: 20px;
+        line-height: 16px;
         cursor: pointer;
         transition: all 0.1s ease;
-        font-family: inherit;
-        min-height: 36px;
+        font-family: var(--vscode-font-family);
+        min-height: 28px;
       }
 
       .btn-upload:hover {
-        background-color: #f6f6f7;
-        border-color: #babfc3;
+        background-color: var(--vscode-button-secondaryHoverBackground);
       }
 
       .btn-upload:active {
-        background-color: #f1f2f4;
-        box-shadow: inset 0 1px 0 0 rgba(0,0,0,0.05);
+        background-color: var(--vscode-button-secondaryHoverBackground);
+        opacity: 0.9;
       }
 
       .btn-upload:focus {
         outline: none;
-        box-shadow: 0 0 0 2px #005bd3;
+        box-shadow: 0 0 0 1px var(--vscode-focusBorder);
       }
 
       .upload-status {
-        margin-top: 8px;
-        color: #6d7175;
-        font-size: 12px;
-        line-height: 16px;
+        margin-top: 6px;
+        color: var(--vscode-descriptionForeground);
+        font-size: 11px;
+        line-height: 14px;
       }
 
       .unsupported-warning {
-        padding: 12px 16px;
-        background-color: #fff4e6;
-        border: 1.5px solid #ffb224;
-        border-radius: 8px;
-        color: #916a00;
-        font-size: 12px;
-        line-height: 16px;
+        padding: 8px 10px;
+        background-color: var(--vscode-inputValidation-warningBackground);
+        border: 1px solid var(--vscode-inputValidation-warningBorder);
+        border-radius: 4px;
+        color: var(--vscode-inputValidation-warningForeground);
+        font-size: 11px;
+        line-height: 14px;
         font-weight: 500;
       }
 
       .unsupported-warning::before {
         content: "⚠️ ";
-        margin-right: 6px;
+        margin-right: 4px;
       }
     `;
   }
@@ -1181,6 +1219,19 @@ export class SchemaPreviewPanel {
         select.addEventListener('blur', (e) => {
           // Ensure it's back to default when user clicks away
           e.target.value = defaultValue;
+        });
+      });
+
+      // Handle clicks on settings to navigate to their location in the file
+      document.querySelectorAll('.setting-item[data-clickable="true"]').forEach(item => {
+        item.addEventListener('click', (e) => {
+          const settingId = item.getAttribute('data-setting-id');
+          if (settingId) {
+            vscode.postMessage({
+              command: 'navigateToSetting',
+              settingId: settingId
+            });
+          }
         });
       });
     `;
