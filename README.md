@@ -2,6 +2,8 @@
 
 Visual preview of Shopify schema settings directly in VS Code.
 
+![Preview Screenshot](screenshots/preview.png)
+
 [Features](#features) | [Installation](#installation) | [Configuration](#configuration)
 
 ## Features
