@@ -2,7 +2,7 @@
   "name": "shopify-schema-preview",
   "displayName": "Shopify Schema Preview",
   "description": "Visual preview of Shopify schema settings in VS Code",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "publisher": "YakhyoIsmoiljonov",
   "icon": "images/logo.png",
   "repository": {
