@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ShopifySchema, isSectionSchema, isThemeSettings } from './schemaParser';
+import { validateSectionSchema, validateThemeSettings, ValidationResult, ValidationMessage } from './schemaValidator';
 
 export class SchemaPreviewPanel {
   public static currentPanel: SchemaPreviewPanel | undefined;
@@ -11,6 +12,7 @@ export class SchemaPreviewPanel {
   private _schema: ShopifySchema;
   private _workspaceFolder?: vscode.WorkspaceFolder;
   private _sourceDocument?: vscode.TextDocument;
+  private _validationResult?: ValidationResult;
 
   public static createOrShow(extensionUri: vscode.Uri, schema: ShopifySchema, workspaceFolder?: vscode.WorkspaceFolder, sourceDocument?: vscode.TextDocument) {
     const column = vscode.ViewColumn.Beside;
@@ -73,6 +75,14 @@ export class SchemaPreviewPanel {
   private _update() {
     const webview = this._panel.webview;
     this._panel.title = this._getPanelTitle();
+
+    // Run validation
+    if (isSectionSchema(this._schema)) {
+      this._validationResult = validateSectionSchema(this._schema);
+    } else if (isThemeSettings(this._schema)) {
+      this._validationResult = validateThemeSettings(this._schema as any[]);
+    }
+
     this._panel.webview.html = this._getHtmlForWebview(webview);
   }
 
@@ -156,6 +166,14 @@ export class SchemaPreviewPanel {
     return '<div class="error">Unknown schema type</div>';
   }
 
+  private _getSettingValidationErrors(settingId: string): ValidationMessage[] {
+    if (!this._validationResult) return [];
+    return [
+      ...this._validationResult.errors.filter(e => e.settingId === settingId),
+      ...this._validationResult.warnings.filter(w => w.settingId === settingId),
+    ];
+  }
+
   private _renderSectionSchema(): string {
     const schema = this._schema as any;
     const settingsCount = schema.settings?.length || 0;
@@ -163,7 +181,7 @@ export class SchemaPreviewPanel {
 
     return `
       <div class="schema-header">
-        <h1 class="schema-title">${escapeHtml(schema.name)}</h1>
+        <h1 class="schema-title">${escapeHtml(schema.name || 'Untitled Section')}</h1>
         ${schema.tag ? `<span class="schema-badge">${escapeHtml(schema.tag)}</span>` : ''}
       </div>
 
@@ -401,20 +419,37 @@ export class SchemaPreviewPanel {
     }
 
     const conditionalNote = setting.visible_if
-      ? `<div class="conditional-note">Conditional: ${escapeHtml(setting.visible_if)}</div>`
+      ? `<div class="conditional-note"><span>👁</span><span>Conditional: ${escapeHtml(setting.visible_if)}</span></div>`
       : '';
 
     const settingId = setting.id ? escapeHtml(setting.id) : '';
     const settingLabel = escapeHtml(setting.label || setting.id || '');
     const settingType = escapeHtml(setting.type || '');
 
+    // Get validation errors for this setting
+    const validationIssues = this._getSettingValidationErrors(setting.id || '');
+    const hasError = validationIssues.some(v => v.type === 'error');
+    const hasWarning = validationIssues.some(v => v.type === 'warning');
+    const validationClass = hasError ? 'has-error' : (hasWarning ? 'has-warning' : '');
+
+    // Render inline validation messages
+    const inlineValidation = validationIssues.length > 0
+      ? validationIssues.map(v => `
+          <div class="setting-inline-validation inline-${v.type}">
+            <span>${v.type === 'error' ? '✕' : '⚠'}</span>
+            <span>${escapeHtml(v.message)}</span>
+          </div>
+        `).join('')
+      : '';
+
     return `
-      <div class="setting-item"
+      <div class="setting-item ${validationClass}"
            data-setting-id="${settingId}"
            data-setting-label="${settingLabel.toLowerCase()}"
            data-setting-type="${settingType}"
            data-clickable="${settingId ? 'true' : 'false'}">
         ${this._renderControl(setting)}
+        ${inlineValidation}
         ${conditionalNote}
       </div>
     `;
@@ -460,17 +495,28 @@ export class SchemaPreviewPanel {
           label: escapeHtml(opt.label),
           value: escapeHtml(opt.value)
         })) || [];
-        
+        const selectedOption = options.find((opt: any) => opt.value === setting.default) || options[0];
+        const optionCount = options.length;
+
         return `
           <div class="form-field">
             <label class="field-label">${label}</label>
             ${helpText ? `<div class="field-help">${helpText}</div>` : ''}
-            <div class="select-grid">
-              ${options.map((opt: any) => `
-                <div class="select-option ${opt.value === setting.default ? 'selected' : ''}" data-value="${opt.value}">
-                  <div class="select-option-label">${opt.label}</div>
-                </div>
-              `).join('')}
+            <div class="select-dropdown">
+              <div class="select-current">
+                <span class="select-current-value">${selectedOption?.label || 'Select an option'}</span>
+                <span class="select-current-meta">${optionCount} option${optionCount !== 1 ? 's' : ''}</span>
+                <span class="select-chevron">▼</span>
+              </div>
+              <div class="select-options-list">
+                ${options.map((opt: any) => `
+                  <div class="select-option ${opt.value === setting.default ? 'selected' : ''}" data-value="${opt.value}">
+                    <span class="select-option-radio"></span>
+                    <span class="select-option-label">${opt.label}</span>
+                    <span class="select-option-value">${opt.value}</span>
+                  </div>
+                `).join('')}
+              </div>
             </div>
           </div>
         `;
@@ -738,6 +784,37 @@ export class SchemaPreviewPanel {
         font-weight: 500;
         margin-top: 6px;
         border: 1px solid var(--vscode-panel-border);
+      }
+
+      /* Inline validation indicators on settings */
+      .setting-item.has-error {
+        border-color: var(--vscode-testing-iconFailed, #f44336);
+        box-shadow: 0 0 0 1px var(--vscode-testing-iconFailed, #f44336);
+      }
+
+      .setting-item.has-warning {
+        border-color: var(--vscode-editorWarning-foreground, #ff9800);
+      }
+
+      .setting-inline-validation {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        padding: 6px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        line-height: 14px;
+      }
+
+      .setting-inline-validation.inline-error {
+        background: rgba(244, 67, 54, 0.1);
+        color: var(--vscode-testing-iconFailed, #f44336);
+      }
+
+      .setting-inline-validation.inline-warning {
+        background: rgba(255, 152, 0, 0.1);
+        color: var(--vscode-editorWarning-foreground, #ff9800);
       }
 
       .search-toolbar {
@@ -1200,19 +1277,16 @@ export class SchemaPreviewPanel {
       }
 
       .conditional-note {
+        display: flex;
+        align-items: center;
+        gap: 6px;
         margin-top: 8px;
-        padding: 8px;
-        background-color: var(--vscode-inputValidation-warningBackground);
-        border: 1px solid var(--vscode-inputValidation-warningBorder);
-        color: var(--vscode-inputValidation-warningForeground);
-        font-size: 11px;
+        padding: 6px 8px;
         border-radius: 4px;
+        font-size: 11px;
         line-height: 14px;
-      }
-
-      .conditional-note::before {
-        content: "⚠️ ";
-        margin-right: 4px;
+        background: rgba(33, 150, 243, 0.1);
+        color: var(--vscode-editorInfo-foreground, #2196f3);
       }
 
       .form-field {
@@ -1282,76 +1356,131 @@ export class SchemaPreviewPanel {
         padding: 6px 8px;
       }
 
-      .select-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
-        margin-top: 2px;
+      .select-dropdown {
+        margin-top: 6px;
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 4px;
+        overflow: hidden;
+        background: var(--vscode-input-background);
+      }
+
+      .select-current {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        background: var(--vscode-input-background);
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.1s ease;
+      }
+
+      .select-current:hover {
+        background: var(--vscode-list-hoverBackground);
+      }
+
+      .select-current-value {
+        flex: 1;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--vscode-foreground);
+      }
+
+      .select-current-meta {
+        font-size: 10px;
+        color: var(--vscode-descriptionForeground);
+        margin-right: 8px;
+        padding: 2px 6px;
+        background: var(--vscode-badge-background);
+        border-radius: 10px;
+      }
+
+      .select-chevron {
+        font-size: 10px;
+        color: var(--vscode-descriptionForeground);
+        transition: transform 0.2s ease;
+      }
+
+      .select-dropdown.expanded .select-chevron {
+        transform: rotate(180deg);
+      }
+
+      .select-options-list {
+        display: none;
+        border-top: 1px solid var(--vscode-panel-border);
+        max-height: 200px;
+        overflow-y: auto;
+      }
+
+      .select-dropdown.expanded .select-options-list {
+        display: block;
       }
 
       .select-option {
         display: flex;
         align-items: center;
-        padding: 8px 10px;
-        background-color: var(--vscode-input-background);
-        border: 1px solid var(--vscode-input-border);
-        border-radius: 4px;
+        padding: 6px 12px;
         cursor: pointer;
-        transition: all 0.15s ease;
-        position: relative;
+        transition: background-color 0.1s ease;
+        gap: 8px;
       }
 
       .select-option:hover {
         background-color: var(--vscode-list-hoverBackground);
-        border-color: var(--vscode-focusBorder);
       }
 
       .select-option.selected {
         background-color: var(--vscode-list-activeSelectionBackground);
-        border-color: var(--vscode-focusBorder);
-        border-width: 1.5px;
       }
 
-      .select-option.selected .select-option-label {
-        color: var(--vscode-list-activeSelectionForeground);
-        font-weight: 600;
-      }
-
-      .select-option-check {
+      .select-option-radio {
         width: 14px;
         height: 14px;
-        border: 1px solid var(--vscode-checkbox-border);
-        border-radius: 3px;
-        margin-right: 8px;
+        border: 1.5px solid var(--vscode-input-border);
+        border-radius: 50%;
         flex-shrink: 0;
-        background-color: var(--vscode-checkbox-background);
         position: relative;
         transition: all 0.15s ease;
       }
 
-      .select-option.selected .select-option-check {
-        background-color: var(--vscode-checkbox-selectBackground);
-        border-color: var(--vscode-checkbox-selectBorder);
+      .select-option.selected .select-option-radio {
+        border-color: var(--vscode-focusBorder);
       }
 
-      .select-option.selected .select-option-check::after {
+      .select-option.selected .select-option-radio::after {
         content: '';
         position: absolute;
-        left: 3px;
-        top: 0px;
-        width: 3px;
-        height: 7px;
-        border: solid var(--vscode-checkbox-selectForeground);
-        border-width: 0 2px 2px 0;
-        transform: rotate(45deg);
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 6px;
+        height: 6px;
+        background: var(--vscode-focusBorder);
+        border-radius: 50%;
       }
 
       .select-option-label {
+        flex: 1;
         font-size: 12px;
         line-height: 16px;
         color: var(--vscode-foreground);
-        flex: 1;
-        word-break: break-word;
+      }
+
+      .select-option.selected .select-option-label {
+        font-weight: 500;
+        color: var(--vscode-list-activeSelectionForeground);
+      }
+
+      .select-option-value {
+        font-size: 10px;
+        color: var(--vscode-descriptionForeground);
+        font-family: inherit;
+        padding: 1px 4px;
+        background: var(--vscode-textBlockQuote-background);
+        border-radius: 3px;
+      }
+
+      .select-option.selected .select-option-value {
+        background: rgba(255, 255, 255, 0.1);
       }
 
       .field-checkbox-wrapper {
@@ -1646,8 +1775,8 @@ export class SchemaPreviewPanel {
       // Handle clicks on settings to navigate to their location in the file
       document.querySelectorAll('.setting-item[data-clickable="true"]').forEach(item => {
         item.addEventListener('click', (e) => {
-          // Don't navigate if clicking on a select option
-          if (e.target.closest('.select-option')) {
+          // Don't navigate if clicking on a select dropdown
+          if (e.target.closest('.select-dropdown')) {
             return;
           }
 
@@ -1659,6 +1788,32 @@ export class SchemaPreviewPanel {
             });
           }
         });
+      });
+
+      // Select dropdown toggle functionality
+      document.querySelectorAll('.select-dropdown').forEach(dropdown => {
+        const current = dropdown.querySelector('.select-current');
+        if (current) {
+          current.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Close other dropdowns
+            document.querySelectorAll('.select-dropdown.expanded').forEach(other => {
+              if (other !== dropdown) {
+                other.classList.remove('expanded');
+              }
+            });
+            dropdown.classList.toggle('expanded');
+          });
+        }
+      });
+
+      // Close dropdowns when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.select-dropdown')) {
+          document.querySelectorAll('.select-dropdown.expanded').forEach(dropdown => {
+            dropdown.classList.remove('expanded');
+          });
+        }
       });
 
       // Collapsible sections functionality
@@ -1851,6 +2006,7 @@ export class SchemaPreviewPanel {
           performSearch();
         }
       });
+
     `;
   }
 }
