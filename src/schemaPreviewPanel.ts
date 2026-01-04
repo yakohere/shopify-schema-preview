@@ -49,13 +49,16 @@ export class SchemaPreviewPanel {
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
     this._panel.webview.onDidReceiveMessage(
-      message => {
+      async message => {
         switch (message.command) {
           case 'alert':
             vscode.window.showInformationMessage(message.text);
             return;
           case 'navigateToSetting':
             this._navigateToSetting(message.settingId);
+            return;
+          case 'addSetting':
+            await this._addSetting(message.setting, message.afterSettingId);
             return;
         }
       },
@@ -131,6 +134,100 @@ export class SchemaPreviewPanel {
     }
   }
 
+  private async _addSetting(setting: any, afterSettingId: string | null) {
+    if (!this._sourceDocument) {
+      vscode.window.showErrorMessage('No source document available.');
+      return;
+    }
+
+    const text = this._sourceDocument.getText();
+
+    // Detect indentation from existing settings by finding a setting object
+    const indentMatch = text.match(/\n(\s*)\{\s*\n\s*"type"/);
+    const baseIndent = indentMatch ? indentMatch[1] : '    ';
+    const propertyIndent = baseIndent + '  ';
+
+    // Format the setting as JSON with detected indentation
+    const lines = JSON.stringify(setting, null, 2).split('\n');
+    const settingJson = lines
+      .map((line, i) => {
+        if (i === 0) return line; // Opening brace - no extra indent (baseIndent added separately)
+        if (i === lines.length - 1) return baseIndent + line.trimStart(); // Closing brace
+        return propertyIndent + line.trimStart(); // Properties
+      })
+      .join('\n');
+
+    let insertPosition: number;
+    let insertText: string;
+
+    if (afterSettingId) {
+      // Find the setting with this ID and insert after it
+      const searchPattern = new RegExp(`["']id["']\\s*:\\s*["']${afterSettingId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'i');
+      const match = text.match(searchPattern);
+
+      if (match && match.index !== undefined) {
+        // Find the end of this setting object (closing brace)
+        let braceCount = 0;
+        let foundStart = false;
+        let endPos = match.index;
+
+        // First, find the opening brace of this setting
+        for (let i = match.index; i >= 0; i--) {
+          if (text[i] === '{') {
+            foundStart = true;
+            break;
+          }
+        }
+
+        if (foundStart) {
+          // Now find the closing brace
+          for (let i = match.index; i < text.length; i++) {
+            if (text[i] === '{') braceCount++;
+            if (text[i] === '}') {
+              braceCount--;
+              if (braceCount < 0) {
+                endPos = i + 1;
+                break;
+              }
+            }
+          }
+        }
+
+        insertPosition = endPos;
+        insertText = ',\n' + baseIndent + settingJson;
+      } else {
+        vscode.window.showErrorMessage('Could not find the setting to insert after.');
+        return;
+      }
+    } else {
+      // Insert at the beginning of settings array
+      const settingsMatch = text.match(/"settings"\s*:\s*\[/);
+      if (settingsMatch && settingsMatch.index !== undefined) {
+        insertPosition = settingsMatch.index + settingsMatch[0].length;
+        insertText = '\n' + baseIndent + settingJson + ',';
+      } else {
+        vscode.window.showErrorMessage('Could not find settings array in schema.');
+        return;
+      }
+    }
+
+    // Apply the edit
+    const editor = await vscode.window.showTextDocument(this._sourceDocument, {
+      viewColumn: vscode.ViewColumn.One,
+      preserveFocus: false,
+    });
+
+    const position = this._sourceDocument.positionAt(insertPosition);
+
+    await editor.edit(editBuilder => {
+      editBuilder.insert(position, insertText);
+    });
+
+    // Show success message
+    const settingName = setting.id || setting.content || setting.type;
+    vscode.window.showInformationMessage(`Added setting "${settingName}" to schema.`);
+  }
+
   private _getHtmlForWebview(webview: vscode.Webview): string {
     const nonce = getNonce();
 
@@ -148,6 +245,126 @@ export class SchemaPreviewPanel {
       <body>
   <div class="schema-container">
     ${this._renderContent()}
+  </div>
+
+  <!-- Add Setting Modal -->
+  <div class="modal-overlay" id="add-setting-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add New Setting</h3>
+        <button class="modal-close" id="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-error" id="modal-error"></div>
+        <div class="form-field">
+          <label class="field-label">Type *</label>
+          <select id="new-setting-type" class="modal-select">
+            <optgroup label="Basic Input">
+              <option value="text">Text</option>
+              <option value="textarea">Textarea</option>
+              <option value="number">Number</option>
+              <option value="range">Range</option>
+              <option value="checkbox">Checkbox</option>
+              <option value="radio">Radio</option>
+              <option value="select">Select</option>
+            </optgroup>
+            <optgroup label="Specialized">
+              <option value="color">Color</option>
+              <option value="color_scheme">Color Scheme</option>
+              <option value="font_picker">Font Picker</option>
+              <option value="image_picker">Image Picker</option>
+              <option value="video">Video</option>
+              <option value="video_url">Video URL</option>
+              <option value="url">URL</option>
+              <option value="richtext">Rich Text</option>
+              <option value="html">HTML</option>
+              <option value="liquid">Liquid</option>
+            </optgroup>
+            <optgroup label="Resource Pickers">
+              <option value="article">Article</option>
+              <option value="blog">Blog</option>
+              <option value="collection">Collection</option>
+              <option value="collection_list">Collection List</option>
+              <option value="page">Page</option>
+              <option value="product">Product</option>
+              <option value="product_list">Product List</option>
+              <option value="link_list">Link List</option>
+            </optgroup>
+            <optgroup label="Layout">
+              <option value="header">Header</option>
+              <option value="paragraph">Paragraph</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="form-field" id="id-field">
+          <label class="field-label">ID *</label>
+          <input type="text" id="new-setting-id" class="field-input" placeholder="my_setting_id" />
+          <div class="field-help">Unique identifier (lowercase, underscores only)</div>
+        </div>
+        <div class="form-field" id="label-field">
+          <label class="field-label">Label *</label>
+          <input type="text" id="new-setting-label" class="field-input" placeholder="My Setting Label" />
+        </div>
+        <div class="form-field" id="content-field" style="display: none;">
+          <label class="field-label">Content *</label>
+          <input type="text" id="new-setting-content" class="field-input" placeholder="Header or paragraph text" />
+        </div>
+        <div class="form-field">
+          <label class="field-label">Info (optional)</label>
+          <input type="text" id="new-setting-info" class="field-input" placeholder="Help text for merchants" />
+        </div>
+        <div class="form-field" id="default-field">
+          <label class="field-label">Default Value (optional)</label>
+          <input type="text" id="new-setting-default" class="field-input" placeholder="Default value" />
+        </div>
+
+        <!-- Range-specific fields -->
+        <div class="range-fields" id="range-fields" style="display: none;">
+          <div class="form-row">
+            <div class="form-field">
+              <label class="field-label">Min *</label>
+              <input type="number" id="new-setting-min" class="field-input" value="0" />
+            </div>
+            <div class="form-field">
+              <label class="field-label">Max *</label>
+              <input type="number" id="new-setting-max" class="field-input" value="100" />
+            </div>
+            <div class="form-field">
+              <label class="field-label">Step</label>
+              <input type="number" id="new-setting-step" class="field-input" value="1" />
+            </div>
+          </div>
+          <div class="form-field">
+            <label class="field-label">Unit (optional)</label>
+            <input type="text" id="new-setting-unit" class="field-input" placeholder="px, %, etc." />
+          </div>
+        </div>
+
+        <!-- Select/Radio options -->
+        <div class="options-fields" id="options-fields" style="display: none;">
+          <div class="form-field">
+            <label class="field-label">Options *</label>
+            <div class="field-help">One option per line: value|Label</div>
+            <textarea id="new-setting-options" class="field-textarea" placeholder="option1|Option 1\noption2|Option 2\noption3|Option 3"></textarea>
+          </div>
+        </div>
+
+        <!-- Conditional visibility -->
+        <div class="form-field" id="visible-if-field">
+          <label class="field-label">Visible If (optional)</label>
+          <div class="visible-if-input-wrapper">
+            <span class="visible-if-prefix">{{</span>
+            <input type="text" id="new-setting-visible-if" class="field-input visible-if-input" placeholder="section.settings.some_setting == true" />
+            <span class="visible-if-suffix">}}</span>
+          </div>
+          <div class="field-help">Liquid condition for conditional visibility</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="modal-cancel">Cancel</button>
+        <button class="btn-primary" id="modal-add">Add Setting</button>
+      </div>
+    </div>
   </div>
 
         <script nonce="${nonce}">
@@ -623,14 +840,17 @@ export class SchemaPreviewPanel {
       : '';
 
     return `
-      <div class="setting-item ${validationClass}"
-           data-setting-id="${settingId}"
-           data-setting-label="${settingLabel.toLowerCase()}"
-           data-setting-type="${settingType}"
-           data-clickable="${settingId ? 'true' : 'false'}">
-        ${this._renderControl(setting)}
-        ${inlineValidation}
-        ${conditionalNote}
+      <div class="setting-item-wrapper">
+        <div class="setting-item ${validationClass}"
+             data-setting-id="${settingId}"
+             data-setting-label="${settingLabel.toLowerCase()}"
+             data-setting-type="${settingType}"
+             data-clickable="${settingId ? 'true' : 'false'}">
+          ${this._renderControl(setting)}
+          ${inlineValidation}
+          ${conditionalNote}
+        </div>
+        <button class="add-setting-btn" title="Add setting after this">+</button>
       </div>
     `;
   }
@@ -2246,6 +2466,280 @@ export class SchemaPreviewPanel {
         content: "⚠️ ";
         margin-right: 4px;
       }
+
+      /* Setting Item Wrapper with Add Button */
+      .setting-item-wrapper {
+        position: relative;
+      }
+
+      .add-setting-btn {
+        position: absolute;
+        bottom: -5px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 50%;
+        background: var(--vscode-editor-background);
+        color: var(--vscode-descriptionForeground);
+        font-size: 16px;
+        font-weight: 500;
+        line-height: 1;
+        cursor: pointer;
+        opacity: 0;
+        transition: all 0.15s ease;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .setting-item-wrapper:hover .add-setting-btn {
+        opacity: 1;
+      }
+
+      .add-setting-btn:hover {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        border-color: var(--vscode-button-background);
+        transform: translateX(-50%) scale(1.1);
+      }
+
+      .add-setting-btn:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px var(--vscode-focusBorder);
+        opacity: 1;
+      }
+
+      /* Modal Overlay */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .modal-overlay.visible {
+        display: flex;
+      }
+
+      .modal-content {
+        background: var(--vscode-editor-background);
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 8px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        max-width: 480px;
+        width: 100%;
+        max-height: 80vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--vscode-panel-border);
+        background: var(--vscode-input-background);
+      }
+
+      .modal-header h3 {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--vscode-foreground);
+        margin: 0;
+      }
+
+      .modal-close {
+        width: 28px;
+        height: 28px;
+        border: none;
+        background: transparent;
+        color: var(--vscode-descriptionForeground);
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.1s ease;
+      }
+
+      .modal-close:hover {
+        background: var(--vscode-toolbar-hoverBackground);
+        color: var(--vscode-foreground);
+      }
+
+      .modal-body {
+        padding: 16px;
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .modal-error {
+        display: none;
+        padding: 8px 12px;
+        margin-bottom: 14px;
+        background: rgba(244, 67, 54, 0.1);
+        border: 1px solid var(--vscode-testing-iconFailed, #f44336);
+        border-radius: 4px;
+        color: var(--vscode-testing-iconFailed, #f44336);
+        font-size: 12px;
+      }
+
+      .modal-error.visible {
+        display: block;
+      }
+
+      .modal-body .form-field {
+        margin-bottom: 14px;
+      }
+
+      .modal-body .form-field:last-child {
+        margin-bottom: 0;
+      }
+
+      .modal-select {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 4px;
+        font-family: var(--vscode-font-family);
+        font-size: 12px;
+        color: var(--vscode-input-foreground);
+        background-color: var(--vscode-input-background);
+        cursor: pointer;
+      }
+
+      .modal-select:focus {
+        outline: none;
+        border-color: var(--vscode-focusBorder);
+        box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+      }
+
+      .modal-select optgroup {
+        font-weight: 600;
+        color: var(--vscode-descriptionForeground);
+      }
+
+      .modal-select option {
+        font-weight: 400;
+        color: var(--vscode-foreground);
+        padding: 4px 0;
+      }
+
+      .form-row {
+        display: flex;
+        gap: 12px;
+      }
+
+      .form-row .form-field {
+        flex: 1;
+      }
+
+      .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 12px 16px;
+        border-top: 1px solid var(--vscode-panel-border);
+        background: var(--vscode-input-background);
+      }
+
+      .btn-primary,
+      .btn-secondary {
+        padding: 6px 14px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.1s ease;
+        font-family: var(--vscode-font-family);
+        border: 1px solid transparent;
+      }
+
+      .btn-primary {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        border-color: var(--vscode-button-background);
+      }
+
+      .btn-primary:hover {
+        background: var(--vscode-button-hoverBackground);
+      }
+
+      .btn-primary:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px var(--vscode-focusBorder);
+      }
+
+      .btn-secondary {
+        background: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+        border-color: var(--vscode-button-border);
+      }
+
+      .btn-secondary:hover {
+        background: var(--vscode-button-secondaryHoverBackground);
+      }
+
+      .btn-secondary:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px var(--vscode-focusBorder);
+      }
+
+      .modal-body .field-textarea {
+        min-height: 80px;
+        font-family: var(--vscode-editor-font-family, monospace);
+        font-size: 11px;
+      }
+
+      .visible-if-input-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        background: var(--vscode-input-background);
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      .visible-if-input-wrapper:focus-within {
+        border-color: var(--vscode-focusBorder);
+        box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+      }
+
+      .visible-if-prefix,
+      .visible-if-suffix {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--vscode-descriptionForeground);
+        background: var(--vscode-textBlockQuote-background);
+        user-select: none;
+      }
+
+      .visible-if-input {
+        flex: 1;
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+      }
+
+      .visible-if-input:focus {
+        box-shadow: none !important;
+      }
     `;
   }
 
@@ -2491,11 +2985,239 @@ export class SchemaPreviewPanel {
           e.preventDefault();
           searchInput?.focus();
         }
-        // Escape to clear search
-        if (e.key === 'Escape' && searchInput === document.activeElement) {
-          searchInput.value = '';
-          performSearch();
+        // Escape to clear search or close modal
+        if (e.key === 'Escape') {
+          if (modal?.classList.contains('visible')) {
+            closeModal();
+          } else if (searchInput === document.activeElement) {
+            searchInput.value = '';
+            performSearch();
+          }
         }
+      });
+
+      // ========== Add Setting Modal ==========
+      const modal = document.getElementById('add-setting-modal');
+      const modalClose = document.getElementById('modal-close');
+      const modalCancel = document.getElementById('modal-cancel');
+      const modalAdd = document.getElementById('modal-add');
+      const settingTypeSelect = document.getElementById('new-setting-type');
+      const idField = document.getElementById('id-field');
+      const labelField = document.getElementById('label-field');
+      const contentField = document.getElementById('content-field');
+      const defaultField = document.getElementById('default-field');
+      const rangeFields = document.getElementById('range-fields');
+      const optionsFields = document.getElementById('options-fields');
+      const visibleIfField = document.getElementById('visible-if-field');
+      const modalError = document.getElementById('modal-error');
+
+      let insertAfterSettingId = null;
+
+      function showError(message) {
+        if (modalError) {
+          modalError.textContent = message;
+          modalError.classList.add('visible');
+        }
+      }
+
+      function hideError() {
+        if (modalError) {
+          modalError.textContent = '';
+          modalError.classList.remove('visible');
+        }
+      }
+
+      function openModal(afterSettingId) {
+        insertAfterSettingId = afterSettingId;
+        modal?.classList.add('visible');
+        resetForm();
+        updateFormFields();
+        document.getElementById('new-setting-type')?.focus();
+      }
+
+      function closeModal() {
+        modal?.classList.remove('visible');
+        insertAfterSettingId = null;
+        resetForm();
+      }
+
+      function resetForm() {
+        document.getElementById('new-setting-type').value = 'text';
+        document.getElementById('new-setting-id').value = '';
+        document.getElementById('new-setting-label').value = '';
+        document.getElementById('new-setting-content').value = '';
+        document.getElementById('new-setting-info').value = '';
+        document.getElementById('new-setting-default').value = '';
+        document.getElementById('new-setting-min').value = '0';
+        document.getElementById('new-setting-max').value = '100';
+        document.getElementById('new-setting-step').value = '1';
+        document.getElementById('new-setting-unit').value = '';
+        document.getElementById('new-setting-options').value = '';
+        document.getElementById('new-setting-visible-if').value = '';
+        hideError();
+      }
+
+      function updateFormFields() {
+        const type = settingTypeSelect?.value || 'text';
+        const isLayoutType = type === 'header' || type === 'paragraph';
+        const isRangeType = type === 'range';
+        const isOptionsType = type === 'select' || type === 'radio';
+
+        // Show/hide fields based on type
+        idField.style.display = isLayoutType ? 'none' : 'block';
+        labelField.style.display = isLayoutType ? 'none' : 'block';
+        contentField.style.display = isLayoutType ? 'block' : 'none';
+        defaultField.style.display = isLayoutType ? 'none' : 'block';
+        rangeFields.style.display = isRangeType ? 'block' : 'none';
+        optionsFields.style.display = isOptionsType ? 'block' : 'none';
+        visibleIfField.style.display = isLayoutType ? 'none' : 'block';
+      }
+
+      function buildSettingObject() {
+        hideError();
+        const type = settingTypeSelect?.value || 'text';
+        const isLayoutType = type === 'header' || type === 'paragraph';
+
+        const setting = { type };
+
+        if (isLayoutType) {
+          const content = document.getElementById('new-setting-content')?.value?.trim();
+          if (!content) {
+            showError('Content is required for header/paragraph settings.');
+            return null;
+          }
+          setting.content = content;
+        } else {
+          const id = document.getElementById('new-setting-id')?.value?.trim();
+          const label = document.getElementById('new-setting-label')?.value?.trim();
+
+          if (!id) {
+            showError('ID is required.');
+            return null;
+          }
+          if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(id)) {
+            showError('ID must start with a letter/underscore and contain only alphanumeric characters, underscores, and hyphens.');
+            return null;
+          }
+          if (!label) {
+            showError('Label is required.');
+            return null;
+          }
+
+          setting.id = id;
+          setting.label = label;
+
+          const info = document.getElementById('new-setting-info')?.value?.trim();
+          if (info) {
+            setting.info = info;
+          }
+
+          const defaultVal = document.getElementById('new-setting-default')?.value?.trim();
+
+          // Handle range type
+          if (type === 'range') {
+            const min = parseInt(document.getElementById('new-setting-min')?.value, 10);
+            const max = parseInt(document.getElementById('new-setting-max')?.value, 10);
+            const step = parseInt(document.getElementById('new-setting-step')?.value, 10) || 1;
+            const unit = document.getElementById('new-setting-unit')?.value?.trim();
+
+            if (isNaN(min) || isNaN(max)) {
+              showError('Min and Max are required for range settings.');
+              return null;
+            }
+            if (min >= max) {
+              showError('Min must be less than Max.');
+              return null;
+            }
+
+            setting.min = min;
+            setting.max = max;
+            setting.step = step;
+            if (unit) setting.unit = unit;
+            if (defaultVal) setting.default = parseInt(defaultVal, 10) || min;
+          }
+          // Handle select/radio options
+          else if (type === 'select' || type === 'radio') {
+            const optionsText = document.getElementById('new-setting-options')?.value?.trim();
+            if (!optionsText) {
+              showError('Options are required for select/radio settings.');
+              return null;
+            }
+
+            const options = optionsText.split('\\n').map(line => {
+              const parts = line.split('|');
+              return {
+                value: parts[0]?.trim() || '',
+                label: parts[1]?.trim() || parts[0]?.trim() || ''
+              };
+            }).filter(opt => opt.value);
+
+            if (options.length === 0) {
+              showError('At least one valid option is required.');
+              return null;
+            }
+
+            setting.options = options;
+            if (defaultVal) setting.default = defaultVal;
+          }
+          // Handle checkbox
+          else if (type === 'checkbox') {
+            if (defaultVal) {
+              setting.default = defaultVal.toLowerCase() === 'true';
+            }
+          }
+          // Handle number
+          else if (type === 'number') {
+            if (defaultVal) setting.default = parseInt(defaultVal, 10);
+          }
+          // Default: string types
+          else {
+            if (defaultVal) setting.default = defaultVal;
+          }
+
+          // Add visible_if for conditional visibility
+          const visibleIf = document.getElementById('new-setting-visible-if')?.value?.trim();
+          if (visibleIf) {
+            setting.visible_if = '{{ ' + visibleIf + ' }}';
+          }
+        }
+
+        return setting;
+      }
+
+      // Event listeners for modal
+      modalClose?.addEventListener('click', closeModal);
+      modalCancel?.addEventListener('click', closeModal);
+
+      modal?.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          closeModal();
+        }
+      });
+
+      settingTypeSelect?.addEventListener('change', updateFormFields);
+
+      modalAdd?.addEventListener('click', () => {
+        const setting = buildSettingObject();
+        if (setting) {
+          vscode.postMessage({
+            command: 'addSetting',
+            setting: setting,
+            afterSettingId: insertAfterSettingId
+          });
+          closeModal();
+        }
+      });
+
+      // Handle add setting button clicks
+      document.querySelectorAll('.add-setting-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const wrapper = btn.closest('.setting-item-wrapper');
+          const settingItem = wrapper?.querySelector('.setting-item');
+          const settingId = settingItem?.getAttribute('data-setting-id') || null;
+          openModal(settingId);
+        });
       });
 
     `;

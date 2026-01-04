@@ -298,11 +298,11 @@ function validateSettings(
       }
       seenIds.add(setting.id);
 
-      // Check for valid ID format (alphanumeric and underscores)
-      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(setting.id)) {
+      // Check for valid ID format (alphanumeric, underscores, and hyphens)
+      if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(setting.id)) {
         warnings.push({
           type: 'warning',
-          message: `Setting id "${setting.id}" should start with a letter/underscore and contain only alphanumeric characters and underscores`,
+          message: `Setting id "${setting.id}" should start with a letter/underscore and contain only alphanumeric characters, underscores, and hyphens`,
           settingId: setting.id,
           field: 'id',
         });
