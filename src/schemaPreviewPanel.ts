@@ -167,11 +167,22 @@ export class SchemaPreviewPanel {
         ${schema.tag ? `<span class="schema-badge">${escapeHtml(schema.tag)}</span>` : ''}
       </div>
 
-      <div class="collapse-toolbar">
+      <div class="search-toolbar">
+        <div class="search-input-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" class="search-input" placeholder="Search by ID, label, or type..." />
+          <button class="search-clear-btn" id="search-clear" title="Clear search">✕</button>
+        </div>
+        <select id="type-filter" class="type-filter">
+          <option value="">All Types</option>
+          ${this._getSettingTypeOptions(schema)}
+        </select>
         <button class="collapse-toolbar-btn" id="toggle-all" data-state="expanded">
           <span class="toggle-icon">▶</span> <span class="toggle-text">Collapse All</span>
         </button>
       </div>
+
+      <div class="search-results-info" id="search-results-info"></div>
 
       ${schema.settings && schema.settings.length > 0 ? `
         <div class="section-group">
@@ -215,11 +226,22 @@ export class SchemaPreviewPanel {
         <span class="schema-badge">Global Configuration</span>
       </div>
 
-      <div class="collapse-toolbar">
+      <div class="search-toolbar">
+        <div class="search-input-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" class="search-input" placeholder="Search by ID, label, or type..." />
+          <button class="search-clear-btn" id="search-clear" title="Clear search">✕</button>
+        </div>
+        <select id="type-filter" class="type-filter">
+          <option value="">All Types</option>
+          ${this._getThemeSettingTypeOptions(groups)}
+        </select>
         <button class="collapse-toolbar-btn" id="toggle-all" data-state="expanded">
           <span class="toggle-icon">▶</span> <span class="toggle-text">Collapse All</span>
         </button>
       </div>
+
+      <div class="search-results-info" id="search-results-info"></div>
 
       ${groups.map((group, index) => this._renderThemeSettingsGroup(group, index)).join('')}
     `;
@@ -276,6 +298,56 @@ export class SchemaPreviewPanel {
     return icons[groupName] || '⚙️';
   }
 
+  private _getSettingTypeOptions(schema: any): string {
+    const types = new Set<string>();
+
+    // Collect types from section settings
+    if (schema.settings) {
+      schema.settings.forEach((setting: any) => {
+        if (setting.type && setting.type !== 'header' && setting.type !== 'paragraph') {
+          types.add(setting.type);
+        }
+      });
+    }
+
+    // Collect types from block settings
+    if (schema.blocks) {
+      schema.blocks.forEach((block: any) => {
+        if (block.settings) {
+          block.settings.forEach((setting: any) => {
+            if (setting.type && setting.type !== 'header' && setting.type !== 'paragraph') {
+              types.add(setting.type);
+            }
+          });
+        }
+      });
+    }
+
+    return Array.from(types)
+      .sort()
+      .map(type => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`)
+      .join('');
+  }
+
+  private _getThemeSettingTypeOptions(groups: any[]): string {
+    const types = new Set<string>();
+
+    groups.forEach((group: any) => {
+      if (group.settings) {
+        group.settings.forEach((setting: any) => {
+          if (setting.type && setting.type !== 'header' && setting.type !== 'paragraph') {
+            types.add(setting.type);
+          }
+        });
+      }
+    });
+
+    return Array.from(types)
+      .sort()
+      .map(type => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`)
+      .join('');
+  }
+
   private _renderSettingsList(settings: any[]): string {
     return settings.map(setting => this._renderSetting(setting)).join('');
   }
@@ -322,7 +394,7 @@ export class SchemaPreviewPanel {
   private _renderSetting(setting: any): string {
     if (setting.type === 'header') {
       return `
-        <div class="setting-header">
+        <div class="setting-header" data-setting-type="header">
           <h2>${escapeHtml(setting.content || '')}</h2>
         </div>
       `;
@@ -333,9 +405,15 @@ export class SchemaPreviewPanel {
       : '';
 
     const settingId = setting.id ? escapeHtml(setting.id) : '';
+    const settingLabel = escapeHtml(setting.label || setting.id || '');
+    const settingType = escapeHtml(setting.type || '');
 
     return `
-      <div class="setting-item" data-setting-id="${settingId}" data-clickable="${settingId ? 'true' : 'false'}">
+      <div class="setting-item"
+           data-setting-id="${settingId}"
+           data-setting-label="${settingLabel.toLowerCase()}"
+           data-setting-type="${settingType}"
+           data-clickable="${settingId ? 'true' : 'false'}">
         ${this._renderControl(setting)}
         ${conditionalNote}
       </div>
@@ -662,12 +740,131 @@ export class SchemaPreviewPanel {
         border: 1px solid var(--vscode-panel-border);
       }
 
-      .collapse-toolbar {
+      .search-toolbar {
         display: flex;
-        justify-content: flex-end;
+        align-items: center;
         gap: 8px;
         margin-bottom: 12px;
         padding: 0 4px;
+        flex-wrap: wrap;
+      }
+
+      .search-input-wrapper {
+        display: flex;
+        align-items: center;
+        flex: 1;
+        min-width: 200px;
+        position: relative;
+        background-color: var(--vscode-input-background);
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 4px;
+        transition: border-color 0.1s ease;
+      }
+
+      .search-input-wrapper:focus-within {
+        border-color: var(--vscode-focusBorder);
+        box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+      }
+
+      .search-icon {
+        padding: 0 8px;
+        font-size: 12px;
+        opacity: 0.7;
+      }
+
+      .search-input {
+        flex: 1;
+        padding: 6px 8px 6px 0;
+        border: none;
+        background: transparent;
+        color: var(--vscode-input-foreground);
+        font-family: var(--vscode-font-family);
+        font-size: 12px;
+        outline: none;
+      }
+
+      .search-input::placeholder {
+        color: var(--vscode-input-placeholderForeground);
+      }
+
+      .search-clear-btn {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        margin-right: 4px;
+        padding: 0;
+        background: transparent;
+        border: none;
+        color: var(--vscode-descriptionForeground);
+        cursor: pointer;
+        font-size: 12px;
+        border-radius: 3px;
+        transition: all 0.1s ease;
+      }
+
+      .search-clear-btn:hover {
+        background: var(--vscode-toolbar-hoverBackground);
+        color: var(--vscode-foreground);
+      }
+
+      .search-clear-btn.visible {
+        display: flex;
+      }
+
+      .type-filter {
+        padding: 6px 8px;
+        background-color: var(--vscode-input-background);
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 4px;
+        color: var(--vscode-input-foreground);
+        font-family: var(--vscode-font-family);
+        font-size: 11px;
+        cursor: pointer;
+        min-width: 100px;
+        transition: border-color 0.1s ease;
+      }
+
+      .type-filter:focus {
+        outline: none;
+        border-color: var(--vscode-focusBorder);
+        box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+      }
+
+      .type-filter:hover {
+        border-color: var(--vscode-inputOption-activeBorder);
+      }
+
+      .search-results-info {
+        display: none;
+        padding: 8px 12px;
+        margin-bottom: 12px;
+        background-color: var(--vscode-textBlockQuote-background);
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 4px;
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+      }
+
+      .search-results-info.visible {
+        display: block;
+      }
+
+      .search-results-info .highlight-count {
+        font-weight: 600;
+        color: var(--vscode-foreground);
+      }
+
+      .setting-item.search-hidden,
+      .setting-header.search-hidden,
+      .block-item.search-hidden {
+        display: none;
+      }
+
+      .setting-item.search-match {
+        box-shadow: 0 0 0 2px var(--vscode-focusBorder);
+        border-color: var(--vscode-focusBorder);
       }
 
       .collapse-toolbar-btn {
@@ -1521,6 +1718,139 @@ export class SchemaPreviewPanel {
           }
         });
       }
+
+      // Search and Filter functionality
+      const searchInput = document.getElementById('search-input');
+      const typeFilter = document.getElementById('type-filter');
+      const searchClearBtn = document.getElementById('search-clear');
+      const searchResultsInfo = document.getElementById('search-results-info');
+
+      function performSearch() {
+        const searchTerm = (searchInput?.value || '').toLowerCase().trim();
+        const selectedType = typeFilter?.value || '';
+        const allSettings = document.querySelectorAll('.setting-item, .setting-header');
+        const allBlocks = document.querySelectorAll('.block-item');
+
+        let visibleCount = 0;
+        let totalCount = 0;
+
+        // Show/hide clear button
+        if (searchClearBtn) {
+          if (searchTerm) {
+            searchClearBtn.classList.add('visible');
+          } else {
+            searchClearBtn.classList.remove('visible');
+          }
+        }
+
+        // Filter settings
+        allSettings.forEach(setting => {
+          const settingType = setting.getAttribute('data-setting-type') || '';
+
+          // Skip header type for counting
+          if (settingType === 'header') {
+            // Hide headers when filtering
+            if (searchTerm || selectedType) {
+              setting.classList.add('search-hidden');
+            } else {
+              setting.classList.remove('search-hidden');
+            }
+            return;
+          }
+
+          totalCount++;
+
+          const settingId = (setting.getAttribute('data-setting-id') || '').toLowerCase();
+          const settingLabel = (setting.getAttribute('data-setting-label') || '').toLowerCase();
+
+          const matchesSearch = !searchTerm ||
+            settingId.includes(searchTerm) ||
+            settingLabel.includes(searchTerm) ||
+            settingType.includes(searchTerm);
+
+          const matchesType = !selectedType || settingType === selectedType;
+
+          if (matchesSearch && matchesType) {
+            setting.classList.remove('search-hidden');
+            setting.classList.toggle('search-match', !!searchTerm);
+            visibleCount++;
+          } else {
+            setting.classList.add('search-hidden');
+            setting.classList.remove('search-match');
+          }
+        });
+
+        // Filter blocks - show block if any of its settings match
+        allBlocks.forEach(block => {
+          const blockSettings = block.querySelectorAll('.setting-item');
+          const hasVisibleSettings = Array.from(blockSettings).some(s => !s.classList.contains('search-hidden'));
+
+          if (searchTerm || selectedType) {
+            if (hasVisibleSettings) {
+              block.classList.remove('search-hidden');
+              // Expand block to show matching settings
+              block.classList.remove('collapsed');
+            } else {
+              block.classList.add('search-hidden');
+            }
+          } else {
+            block.classList.remove('search-hidden');
+          }
+        });
+
+        // Expand section groups when filtering
+        if (searchTerm || selectedType) {
+          document.querySelectorAll('.section-group, .theme-settings-group').forEach(group => {
+            group.classList.remove('collapsed');
+          });
+        }
+
+        // Update results info
+        if (searchResultsInfo) {
+          if (searchTerm || selectedType) {
+            searchResultsInfo.classList.add('visible');
+            const filterInfo = [];
+            if (searchTerm) filterInfo.push(\`"\${searchTerm}"\`);
+            if (selectedType) filterInfo.push(\`type: \${selectedType}\`);
+            searchResultsInfo.innerHTML = \`Showing <span class="highlight-count">\${visibleCount}</span> of \${totalCount} settings\${filterInfo.length ? ' matching ' + filterInfo.join(' and ') : ''}\`;
+          } else {
+            searchResultsInfo.classList.remove('visible');
+          }
+        }
+      }
+
+      // Debounce search for better performance
+      let searchTimeout;
+      function debouncedSearch() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(performSearch, 150);
+      }
+
+      // Event listeners
+      searchInput?.addEventListener('input', debouncedSearch);
+      typeFilter?.addEventListener('change', performSearch);
+
+      // Clear search button
+      searchClearBtn?.addEventListener('click', () => {
+        if (searchInput) {
+          searchInput.value = '';
+          performSearch();
+          searchInput.focus();
+        }
+      });
+
+      // Keyboard shortcut: Ctrl/Cmd + F to focus search
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+          e.preventDefault();
+          searchInput?.focus();
+        }
+        // Escape to clear search
+        if (e.key === 'Escape' && searchInput === document.activeElement) {
+          searchInput.value = '';
+          performSearch();
+        }
+      });
     `;
   }
 }
