@@ -158,25 +158,50 @@ export class SchemaPreviewPanel {
 
   private _renderSectionSchema(): string {
     const schema = this._schema as any;
+    const settingsCount = schema.settings?.length || 0;
+    const blocksCount = schema.blocks?.length || 0;
+
     return `
       <div class="schema-header">
         <h1 class="schema-title">${escapeHtml(schema.name)}</h1>
         ${schema.tag ? `<span class="schema-badge">${escapeHtml(schema.tag)}</span>` : ''}
       </div>
-      
+
+      <div class="collapse-toolbar">
+        <button class="collapse-toolbar-btn" id="toggle-all" data-state="expanded">
+          <span class="toggle-icon">▶</span> <span class="toggle-text">Collapse All</span>
+        </button>
+      </div>
+
       ${schema.settings && schema.settings.length > 0 ? `
         <div class="section-group">
-          <div class="section-group-title">Section Settings</div>
-          <div class="settings-list">
-            ${this._renderSettingsList(schema.settings)}
+          <div class="section-group-header">
+            <div class="section-group-title">
+              <span class="collapse-icon">▼</span>
+              Section Settings
+              <span class="settings-count">${settingsCount}</span>
+            </div>
+          </div>
+          <div class="section-group-content">
+            <div class="settings-list">
+              ${this._renderSettingsList(schema.settings)}
+            </div>
           </div>
         </div>
       ` : ''}
-      
+
       ${schema.blocks && schema.blocks.length > 0 ? `
         <div class="section-group">
-          <div class="section-group-title">Available Blocks</div>
-          ${this._renderBlocks(schema.blocks)}
+          <div class="section-group-header">
+            <div class="section-group-title">
+              <span class="collapse-icon">▼</span>
+              Available Blocks
+              <span class="settings-count">${blocksCount}</span>
+            </div>
+          </div>
+          <div class="section-group-content">
+            ${this._renderBlocks(schema.blocks)}
+          </div>
         </div>
       ` : ''}
     `;
@@ -189,6 +214,13 @@ export class SchemaPreviewPanel {
         <h1 class="schema-title">🎨 Theme Settings</h1>
         <span class="schema-badge">Global Configuration</span>
       </div>
+
+      <div class="collapse-toolbar">
+        <button class="collapse-toolbar-btn" id="toggle-all" data-state="expanded">
+          <span class="toggle-icon">▶</span> <span class="toggle-text">Collapse All</span>
+        </button>
+      </div>
+
       ${groups.map((group, index) => this._renderThemeSettingsGroup(group, index)).join('')}
     `;
   }
@@ -206,11 +238,19 @@ export class SchemaPreviewPanel {
       `;
     }
 
+    const settingsCount = group.settings?.length || 0;
+
     return `
       <div class="theme-settings-group">
         <div class="theme-group-header">
-          <span class="theme-group-icon">${this._getGroupIcon(group.name)}</span>
-          <h2 class="theme-group-title">${escapeHtml(group.name)}</h2>
+          <div class="theme-group-header-left">
+            <span class="collapse-icon">▼</span>
+            <span class="theme-group-icon">${this._getGroupIcon(group.name)}</span>
+            <h2 class="theme-group-title">${escapeHtml(group.name)}</h2>
+          </div>
+          <div class="theme-group-header-right">
+            ${settingsCount > 0 ? `<span class="settings-count">${settingsCount}</span>` : ''}
+          </div>
         </div>
         ${group.settings && group.settings.length > 0 ? `
           <div class="settings-list">
@@ -251,15 +291,22 @@ export class SchemaPreviewPanel {
   private _renderBlock(block: any): string {
     const blockName = escapeHtml(block.name || block.type || 'Untitled Block');
     const blockType = block.type ? `<span class="block-type">${escapeHtml(block.type)}</span>` : '';
+    const settingsCount = block.settings?.length || 0;
 
     return `
       <div class="block-item">
         <div class="block-header">
-          <div class="block-title">
-            <span class="block-icon">📦</span>
-            ${blockName}
+          <div class="block-header-left">
+            <span class="collapse-icon">▼</span>
+            <div class="block-title">
+              <span class="block-icon">📦</span>
+              ${blockName}
+            </div>
           </div>
-          ${blockType}
+          <div class="block-header-right">
+            ${settingsCount > 0 ? `<span class="settings-count">${settingsCount}</span>` : ''}
+            ${blockType}
+          </div>
         </div>
         ${block.settings && block.settings.length > 0 ? `
           <div class="block-settings">
@@ -615,17 +662,108 @@ export class SchemaPreviewPanel {
         border: 1px solid var(--vscode-panel-border);
       }
 
+      .collapse-toolbar {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-bottom: 12px;
+        padding: 0 4px;
+      }
+
+      .collapse-toolbar-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        background-color: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+        border: 1px solid var(--vscode-button-border);
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 14px;
+        cursor: pointer;
+        transition: all 0.1s ease;
+        font-family: var(--vscode-font-family);
+      }
+
+      .collapse-toolbar-btn:hover {
+        background-color: var(--vscode-button-secondaryHoverBackground);
+      }
+
+      .collapse-toolbar-btn:active {
+        opacity: 0.9;
+      }
+
+      .collapse-toolbar-btn:focus {
+        outline: none;
+        box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+      }
+
       .section-group {
         margin-bottom: 16px;
+        background: var(--vscode-editor-background);
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 6px;
+        overflow: hidden;
+        box-shadow: 0 1px 0 0 var(--vscode-widget-shadow);
+      }
+
+      .section-group-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        background: var(--vscode-input-background);
+        border-bottom: 1px solid var(--vscode-panel-border);
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.1s ease;
+      }
+
+      .section-group-header:hover {
+        background: var(--vscode-list-hoverBackground);
       }
 
       .section-group-title {
         font-size: 12px;
         font-weight: 600;
         color: var(--vscode-foreground);
-        margin-bottom: 8px;
-        padding-bottom: 6px;
-        border-bottom: 1px solid var(--vscode-panel-border);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .section-group-content {
+        padding: 8px;
+        transition: max-height 0.2s ease-out, opacity 0.2s ease-out;
+      }
+
+      .section-group.collapsed .section-group-content {
+        display: none;
+      }
+
+      .section-group.collapsed .section-group-header {
+        border-bottom: none;
+      }
+
+      .collapse-icon {
+        font-size: 10px;
+        transition: transform 0.2s ease;
+        color: var(--vscode-descriptionForeground);
+      }
+
+      .collapsed .collapse-icon {
+        transform: rotate(-90deg);
+      }
+
+      .settings-count {
+        font-size: 10px;
+        color: var(--vscode-descriptionForeground);
+        font-weight: 400;
+        padding: 2px 6px;
+        background: var(--vscode-badge-background);
+        border-radius: 10px;
       }
 
       .settings-list {
@@ -650,6 +788,34 @@ export class SchemaPreviewPanel {
         display: flex;
         align-items: center;
         justify-content: space-between;
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.1s ease;
+      }
+
+      .block-header:hover {
+        background: var(--vscode-list-hoverBackground);
+      }
+
+      .block-item.collapsed .block-header {
+        border-bottom: none;
+      }
+
+      .block-item.collapsed .block-settings,
+      .block-item.collapsed .block-empty {
+        display: none;
+      }
+
+      .block-header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .block-header-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
       }
 
       .block-title {
@@ -745,7 +911,34 @@ export class SchemaPreviewPanel {
         border-bottom: 1px solid var(--vscode-panel-border);
         display: flex;
         align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.1s ease;
+      }
+
+      .theme-group-header:hover {
+        background: var(--vscode-list-hoverBackground);
+      }
+
+      .theme-group-header-left {
+        display: flex;
+        align-items: center;
         gap: 8px;
+      }
+
+      .theme-group-header-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .theme-settings-group.collapsed .theme-group-header {
+        border-bottom: none;
+      }
+
+      .theme-settings-group.collapsed .settings-list {
+        display: none;
       }
 
       .theme-group-icon {
@@ -1260,7 +1453,7 @@ export class SchemaPreviewPanel {
           if (e.target.closest('.select-option')) {
             return;
           }
-          
+
           const settingId = item.getAttribute('data-setting-id');
           if (settingId) {
             vscode.postMessage({
@@ -1270,6 +1463,64 @@ export class SchemaPreviewPanel {
           }
         });
       });
+
+      // Collapsible sections functionality
+      function toggleCollapse(element) {
+        element.classList.toggle('collapsed');
+      }
+
+      // Handle section group header clicks
+      document.querySelectorAll('.section-group-header').forEach(header => {
+        header.addEventListener('click', (e) => {
+          const group = header.closest('.section-group');
+          if (group) {
+            toggleCollapse(group);
+          }
+        });
+      });
+
+      // Handle block header clicks
+      document.querySelectorAll('.block-header').forEach(header => {
+        header.addEventListener('click', (e) => {
+          const block = header.closest('.block-item');
+          if (block) {
+            toggleCollapse(block);
+          }
+        });
+      });
+
+      // Handle theme settings group header clicks
+      document.querySelectorAll('.theme-group-header').forEach(header => {
+        header.addEventListener('click', (e) => {
+          const group = header.closest('.theme-settings-group');
+          if (group) {
+            toggleCollapse(group);
+          }
+        });
+      });
+
+      // Toggle All button
+      const toggleBtn = document.getElementById('toggle-all');
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+          const isExpanded = toggleBtn.getAttribute('data-state') === 'expanded';
+          const collapsibles = document.querySelectorAll('.section-group, .block-item, .theme-settings-group');
+
+          if (isExpanded) {
+            // Collapse all
+            collapsibles.forEach(el => el.classList.add('collapsed'));
+            toggleBtn.setAttribute('data-state', 'collapsed');
+            toggleBtn.querySelector('.toggle-icon').textContent = '▼';
+            toggleBtn.querySelector('.toggle-text').textContent = 'Expand All';
+          } else {
+            // Expand all
+            collapsibles.forEach(el => el.classList.remove('collapsed'));
+            toggleBtn.setAttribute('data-state', 'expanded');
+            toggleBtn.querySelector('.toggle-icon').textContent = '▶';
+            toggleBtn.querySelector('.toggle-text').textContent = 'Collapse All';
+          }
+        });
+      }
     `;
   }
 }
