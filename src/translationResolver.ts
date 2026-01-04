@@ -170,7 +170,7 @@ function resolveSectionSchema(schema: any, workspaceFolder?: vscode.WorkspaceFol
   if (resolved.blocks && Array.isArray(resolved.blocks)) {
     resolved.blocks = resolved.blocks.map((block: any) => {
       const resolvedBlock = { ...block };
-      
+
       if (resolvedBlock.name) {
         resolvedBlock.name = resolveTranslation(resolvedBlock.name, workspaceFolder);
       }
@@ -180,6 +180,23 @@ function resolveSectionSchema(schema: any, workspaceFolder?: vscode.WorkspaceFol
       }
 
       return resolvedBlock;
+    });
+  }
+
+  // Resolve preset translations
+  if (resolved.presets && Array.isArray(resolved.presets)) {
+    resolved.presets = resolved.presets.map((preset: any) => {
+      const resolvedPreset = { ...preset };
+
+      if (resolvedPreset.name) {
+        resolvedPreset.name = resolveTranslation(resolvedPreset.name, workspaceFolder);
+      }
+
+      if (resolvedPreset.category) {
+        resolvedPreset.category = resolveTranslation(resolvedPreset.category, workspaceFolder);
+      }
+
+      return resolvedPreset;
     });
   }
 

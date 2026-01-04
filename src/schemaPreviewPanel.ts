@@ -178,12 +178,15 @@ export class SchemaPreviewPanel {
     const schema = this._schema as any;
     const settingsCount = schema.settings?.length || 0;
     const blocksCount = schema.blocks?.length || 0;
+    const presetsCount = schema.presets?.length || 0;
 
     return `
       <div class="schema-header">
         <h1 class="schema-title">${escapeHtml(schema.name || 'Untitled Section')}</h1>
         ${schema.tag ? `<span class="schema-badge">${escapeHtml(schema.tag)}</span>` : ''}
       </div>
+
+      ${this._renderSectionMeta(schema)}
 
       <div class="search-toolbar">
         <div class="search-input-wrapper">
@@ -226,6 +229,7 @@ export class SchemaPreviewPanel {
               <span class="collapse-icon">▼</span>
               Available Blocks
               <span class="settings-count">${blocksCount}</span>
+              ${schema.max_blocks !== undefined ? `<span class="max-blocks-badge">max: ${schema.max_blocks}</span>` : ''}
             </div>
           </div>
           <div class="section-group-content">
@@ -233,7 +237,181 @@ export class SchemaPreviewPanel {
           </div>
         </div>
       ` : ''}
+
+      ${presetsCount > 0 ? `
+        <div class="section-group">
+          <div class="section-group-header">
+            <div class="section-group-title">
+              <span class="collapse-icon">▼</span>
+              Presets
+              <span class="settings-count">${presetsCount}</span>
+            </div>
+          </div>
+          <div class="section-group-content">
+            ${this._renderPresets(schema.presets, schema.blocks)}
+          </div>
+        </div>
+      ` : ''}
     `;
+  }
+
+  private _renderSectionMeta(schema: any): string {
+    const hasEnabledOn = schema.enabled_on && (schema.enabled_on.templates?.length > 0 || schema.enabled_on.groups?.length > 0);
+    const hasDisabledOn = schema.disabled_on && (schema.disabled_on.templates?.length > 0 || schema.disabled_on.groups?.length > 0);
+    const hasClass = schema.class;
+    const hasLimit = schema.limit !== undefined;
+
+    if (!hasEnabledOn && !hasDisabledOn && !hasClass && !hasLimit) {
+      return '';
+    }
+
+    return `
+      <div class="section-meta">
+        ${hasLimit ? `
+          <div class="meta-item meta-limit">
+            <span class="meta-icon">🔢</span>
+            <span class="meta-label">Section Limit:</span>
+            <span class="meta-value">${schema.limit}</span>
+          </div>
+        ` : ''}
+        ${hasClass ? `
+          <div class="meta-item meta-class">
+            <span class="meta-icon">🏷️</span>
+            <span class="meta-label">CSS Class:</span>
+            <code class="meta-code">${escapeHtml(schema.class)}</code>
+          </div>
+        ` : ''}
+        ${hasEnabledOn ? `
+          <div class="meta-item meta-enabled">
+            <span class="meta-icon">✅</span>
+            <span class="meta-label">Enabled on:</span>
+            <div class="meta-templates">
+              ${schema.enabled_on.templates?.map((t: string) => `<span class="template-tag template-enabled">${escapeHtml(t)}</span>`).join('') || ''}
+              ${schema.enabled_on.groups?.map((g: string) => `<span class="template-tag template-group">${escapeHtml(g)}</span>`).join('') || ''}
+            </div>
+          </div>
+        ` : ''}
+        ${hasDisabledOn ? `
+          <div class="meta-item meta-disabled">
+            <span class="meta-icon">🚫</span>
+            <span class="meta-label">Disabled on:</span>
+            <div class="meta-templates">
+              ${schema.disabled_on.templates?.map((t: string) => `<span class="template-tag template-disabled">${escapeHtml(t)}</span>`).join('') || ''}
+              ${schema.disabled_on.groups?.map((g: string) => `<span class="template-tag template-group-disabled">${escapeHtml(g)}</span>`).join('') || ''}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  private _renderPresets(presets: any[], blocks: any[]): string {
+    if (!presets || presets.length === 0) {
+      return '<div class="block-empty">No presets defined</div>';
+    }
+
+    return presets.map((preset, index) => this._renderPreset(preset, index, blocks)).join('');
+  }
+
+  private _renderPreset(preset: any, index: number, blocks: any[]): string {
+    const presetName = escapeHtml(preset.name || `Preset ${index + 1}`);
+    const presetCategory = preset.category ? escapeHtml(preset.category) : null;
+    const blockCount = preset.blocks?.length || 0;
+    const hasSettings = preset.settings && Object.keys(preset.settings).length > 0;
+
+    return `
+      <div class="preset-item">
+        <div class="preset-header">
+          <div class="preset-header-left">
+            <span class="collapse-icon">▼</span>
+            <div class="preset-title">
+              <span class="preset-icon">📋</span>
+              ${presetName}
+            </div>
+          </div>
+          <div class="preset-header-right">
+            ${presetCategory ? `<span class="preset-category">${presetCategory}</span>` : ''}
+            ${blockCount > 0 ? `<span class="settings-count">${blockCount} block${blockCount !== 1 ? 's' : ''}</span>` : ''}
+          </div>
+        </div>
+        <div class="preset-content">
+          ${hasSettings ? `
+            <div class="preset-settings">
+              <div class="preset-section-title">Default Settings</div>
+              <div class="preset-defaults">
+                ${Object.entries(preset.settings).map(([key, value]) => `
+                  <div class="preset-default-item">
+                    <span class="preset-key">${escapeHtml(key)}</span>
+                    <span class="preset-value">${this._formatPresetValue(value)}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+          ${blockCount > 0 ? `
+            <div class="preset-blocks">
+              <div class="preset-section-title">Preset Blocks</div>
+              ${preset.blocks.map((presetBlock: any, blockIndex: number) => this._renderPresetBlock(presetBlock, blockIndex, blocks)).join('')}
+            </div>
+          ` : ''}
+          ${!hasSettings && blockCount === 0 ? `
+            <div class="preset-empty">Default preset with no customizations</div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderPresetBlock(presetBlock: any, index: number, blocks: any[]): string {
+    const blockType = escapeHtml(presetBlock.type || 'unknown');
+    const blockDef = blocks?.find(b => b.type === presetBlock.type);
+    const blockName = blockDef?.name ? escapeHtml(blockDef.name) : blockType;
+    const hasSettings = presetBlock.settings && Object.keys(presetBlock.settings).length > 0;
+
+    return `
+      <div class="preset-block-item">
+        <div class="preset-block-header">
+          <span class="preset-block-icon">📦</span>
+          <span class="preset-block-name">${blockName}</span>
+          <span class="preset-block-type">${blockType}</span>
+        </div>
+        ${hasSettings ? `
+          <div class="preset-block-settings">
+            ${Object.entries(presetBlock.settings).map(([key, value]) => `
+              <div class="preset-default-item">
+                <span class="preset-key">${escapeHtml(key)}</span>
+                <span class="preset-value">${this._formatPresetValue(value)}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  private _formatPresetValue(value: any): string {
+    if (value === null || value === undefined) {
+      return '<span class="preset-null">null</span>';
+    }
+    if (typeof value === 'boolean') {
+      return `<span class="preset-bool">${value}</span>`;
+    }
+    if (typeof value === 'number') {
+      return `<span class="preset-number">${value}</span>`;
+    }
+    if (typeof value === 'string') {
+      if (value.startsWith('#') && (value.length === 4 || value.length === 7 || value.length === 9)) {
+        return `<span class="preset-color"><span class="color-swatch" style="background-color: ${escapeHtml(value)}"></span>${escapeHtml(value)}</span>`;
+      }
+      return `<span class="preset-string">"${escapeHtml(value)}"</span>`;
+    }
+    if (Array.isArray(value)) {
+      return `<span class="preset-array">[${value.length} items]</span>`;
+    }
+    if (typeof value === 'object') {
+      return `<span class="preset-object">{...}</span>`;
+    }
+    return escapeHtml(String(value));
   }
 
   private _renderThemeSettings(): string {
@@ -382,6 +560,7 @@ export class SchemaPreviewPanel {
     const blockName = escapeHtml(block.name || block.type || 'Untitled Block');
     const blockType = block.type ? `<span class="block-type">${escapeHtml(block.type)}</span>` : '';
     const settingsCount = block.settings?.length || 0;
+    const hasLimit = block.limit !== undefined;
 
     return `
       <div class="block-item">
@@ -394,6 +573,7 @@ export class SchemaPreviewPanel {
             </div>
           </div>
           <div class="block-header-right">
+            ${hasLimit ? `<span class="block-limit-badge">limit: ${block.limit}</span>` : ''}
             ${settingsCount > 0 ? `<span class="settings-count">${settingsCount}</span>` : ''}
             ${blockType}
           </div>
@@ -763,6 +943,9 @@ export class SchemaPreviewPanel {
         margin-bottom: 8px;
         box-shadow: 0 1px 0 0 var(--vscode-widget-shadow);
         border: 1px solid var(--vscode-panel-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
       }
 
       .schema-title {
@@ -782,7 +965,6 @@ export class SchemaPreviewPanel {
         border-radius: 3px;
         font-size: 11px;
         font-weight: 500;
-        margin-top: 6px;
         border: 1px solid var(--vscode-panel-border);
       }
 
@@ -948,7 +1130,7 @@ export class SchemaPreviewPanel {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        padding: 4px 10px;
+        padding: 6px 10px;
         background-color: var(--vscode-button-secondaryBackground);
         color: var(--vscode-button-secondaryForeground);
         border: 1px solid var(--vscode-button-border);
@@ -1032,12 +1214,14 @@ export class SchemaPreviewPanel {
       }
 
       .settings-count {
+        min-width: 22px;
         font-size: 10px;
         color: var(--vscode-descriptionForeground);
         font-weight: 400;
         padding: 2px 6px;
         background: var(--vscode-badge-background);
-        border-radius: 10px;
+        border-radius: 50%;
+        text-align: center;
       }
 
       .settings-list {
@@ -1139,6 +1323,303 @@ export class SchemaPreviewPanel {
         color: var(--vscode-descriptionForeground);
         font-size: 11px;
         font-style: italic;
+      }
+
+      .block-limit-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        background: rgba(255, 152, 0, 0.15);
+        color: var(--vscode-editorWarning-foreground, #ff9800);
+        border-radius: 10px;
+        font-weight: 500;
+      }
+
+      .max-blocks-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        background: rgba(33, 150, 243, 0.15);
+        color: var(--vscode-editorInfo-foreground, #2196f3);
+        border-radius: 10px;
+        font-weight: 500;
+        margin-left: 4px;
+      }
+
+      /* Section Meta - enabled_on/disabled_on, class, limit */
+      .section-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        background: var(--vscode-textBlockQuote-background);
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 6px;
+      }
+
+      .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        padding: 4px 8px;
+        background: var(--vscode-editor-background);
+        border-radius: 4px;
+        border: 1px solid var(--vscode-panel-border);
+      }
+
+      .meta-icon {
+        font-size: 12px;
+      }
+
+      .meta-label {
+        color: var(--vscode-descriptionForeground);
+        font-weight: 500;
+      }
+
+      .meta-value {
+        color: var(--vscode-foreground);
+        font-weight: 600;
+      }
+
+      .meta-code {
+        font-size: 10px;
+        padding: 2px 6px;
+        background: var(--vscode-textBlockQuote-background);
+        border-radius: 3px;
+        color: var(--vscode-textPreformat-foreground);
+      }
+
+      .meta-templates {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+
+      .template-tag {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: 500;
+      }
+
+      .template-enabled {
+        background: rgba(76, 175, 80, 0.15);
+        color: var(--vscode-testing-iconPassed, #4caf50);
+      }
+
+      .template-group {
+        background: rgba(33, 150, 243, 0.15);
+        color: var(--vscode-editorInfo-foreground, #2196f3);
+      }
+
+      .template-disabled {
+        background: rgba(244, 67, 54, 0.15);
+        color: var(--vscode-testing-iconFailed, #f44336);
+      }
+
+      .template-group-disabled {
+        background: rgba(255, 152, 0, 0.15);
+        color: var(--vscode-editorWarning-foreground, #ff9800);
+      }
+
+      /* Preset Styles */
+      .preset-item {
+        background: var(--vscode-editor-background);
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 6px;
+        margin-bottom: 8px;
+        overflow: hidden;
+      }
+
+      .preset-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        background: var(--vscode-input-background);
+        border-bottom: 1px solid var(--vscode-panel-border);
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.1s ease;
+      }
+
+      .preset-header:hover {
+        background: var(--vscode-list-hoverBackground);
+      }
+
+      .preset-item.collapsed .preset-header {
+        border-bottom: none;
+      }
+
+      .preset-item.collapsed .preset-content {
+        display: none;
+      }
+
+      .preset-header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .preset-header-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .preset-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+        color: var(--vscode-foreground);
+        font-size: 12px;
+      }
+
+      .preset-icon {
+        font-size: 14px;
+      }
+
+      .preset-category {
+        font-size: 10px;
+        padding: 2px 6px;
+        background: var(--vscode-badge-background);
+        color: var(--vscode-badge-foreground);
+        border-radius: 10px;
+        font-weight: 500;
+      }
+
+      .preset-content {
+        padding: 12px;
+      }
+
+      .preset-section-title {
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--vscode-descriptionForeground);
+        margin-bottom: 8px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid var(--vscode-panel-border);
+      }
+
+      .preset-settings {
+        margin-bottom: 12px;
+      }
+
+      .preset-defaults {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .preset-default-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 8px;
+        background: var(--vscode-textBlockQuote-background);
+        border-radius: 4px;
+        font-size: 11px;
+      }
+
+      .preset-key {
+        color: var(--vscode-symbolIcon-propertyForeground, #9cdcfe);
+        font-weight: 500;
+      }
+
+      .preset-value {
+        color: var(--vscode-foreground);
+      }
+
+      .preset-string {
+        color: var(--vscode-debugTokenExpression-string, #ce9178);
+      }
+
+      .preset-number {
+        color: var(--vscode-debugTokenExpression-number, #b5cea8);
+      }
+
+      .preset-bool {
+        color: var(--vscode-debugTokenExpression-boolean, #569cd6);
+      }
+
+      .preset-null {
+        color: var(--vscode-descriptionForeground);
+        font-style: italic;
+      }
+
+      .preset-array,
+      .preset-object {
+        color: var(--vscode-descriptionForeground);
+        font-style: italic;
+      }
+
+      .preset-color {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .color-swatch {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+        border: 1px solid var(--vscode-panel-border);
+      }
+
+      .preset-blocks {
+        margin-top: 8px;
+      }
+
+      .preset-block-item {
+        background: var(--vscode-input-background);
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 4px;
+        margin-bottom: 6px;
+        overflow: hidden;
+      }
+
+      .preset-block-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        font-size: 11px;
+      }
+
+      .preset-block-icon {
+        font-size: 12px;
+      }
+
+      .preset-block-name {
+        font-weight: 500;
+        color: var(--vscode-foreground);
+      }
+
+      .preset-block-type {
+        font-size: 10px;
+        padding: 1px 4px;
+        background: var(--vscode-textBlockQuote-background);
+        color: var(--vscode-descriptionForeground);
+        border-radius: 3px;
+        font-family: var(--vscode-editor-font-family, monospace);
+      }
+
+      .preset-block-settings {
+        padding: 6px 10px;
+        background: var(--vscode-editor-background);
+        border-top: 1px solid var(--vscode-panel-border);
+      }
+
+      .preset-empty {
+        text-align: center;
+        color: var(--vscode-descriptionForeground);
+        font-size: 11px;
+        font-style: italic;
+        padding: 8px;
       }
 
       .theme-info-card {
@@ -1367,7 +1848,7 @@ export class SchemaPreviewPanel {
       .select-current {
         display: flex;
         align-items: center;
-        padding: 8px 12px;
+        padding: 6px 12px;
         background: var(--vscode-input-background);
         cursor: pointer;
         user-select: none;
@@ -1851,12 +2332,22 @@ export class SchemaPreviewPanel {
         });
       });
 
+      // Handle preset header clicks
+      document.querySelectorAll('.preset-header').forEach(header => {
+        header.addEventListener('click', (e) => {
+          const preset = header.closest('.preset-item');
+          if (preset) {
+            toggleCollapse(preset);
+          }
+        });
+      });
+
       // Toggle All button
       const toggleBtn = document.getElementById('toggle-all');
       if (toggleBtn) {
         toggleBtn.addEventListener('click', () => {
           const isExpanded = toggleBtn.getAttribute('data-state') === 'expanded';
-          const collapsibles = document.querySelectorAll('.section-group, .block-item, .theme-settings-group');
+          const collapsibles = document.querySelectorAll('.section-group, .block-item, .theme-settings-group, .preset-item');
 
           if (isExpanded) {
             // Collapse all
